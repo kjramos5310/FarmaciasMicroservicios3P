@@ -8,6 +8,7 @@ import {
   Product,
   Branch,
   Customer,
+  Sale,
   CreateSaleRequest,
   CreateSaleItemRequest,
   CreateCustomerRequest,
@@ -21,6 +22,8 @@ interface CustomerFormData {
   lastName: string;
   email?: string;
   phone?: string;
+  address?: string;
+  birthDate?: string;
 }
 
 const customerSchema = yup.object().shape({
@@ -29,6 +32,8 @@ const customerSchema = yup.object().shape({
   lastName: yup.string().required('Apellidos es requerido'),
   email: yup.string().email('Email inválido').optional(),
   phone: yup.string().optional(),
+  address: yup.string().optional(),
+  birthDate: yup.string().optional(),
 });
 
 interface CartItem {
@@ -38,19 +43,27 @@ interface CartItem {
 }
 
 const PointOfSale: React.FC = () => {
+  const [activeView, setActiveView] = useState<'pos' | 'history'>('pos');
   const [products, setProducts] = useState<Product[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [sales, setSales] = useState<Sale[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [selectedBranch, setSelectedBranch] = useState<number | ''>('');
   const [searchTerm, setSearchTerm] = useState('');
   const [discount, setDiscount] = useState(0);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(PaymentMethod.EFECTIVO);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(PaymentMethod.CASH);
   const [loading, setLoading] = useState(true);
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
   const [saleNumber, setSaleNumber] = useState('');
+  const [lastSaleDetails, setLastSaleDetails] = useState<{
+    total: number;
+    items: number;
+    customer: string;
+    paymentMethod: string;
+  } | null>(null);
   const [processing, setProcessing] = useState(false);
 
   const {
@@ -69,17 +82,21 @@ const PointOfSale: React.FC = () => {
   const loadInitialData = async () => {
     try {
       setLoading(true);
-      const [productsData, branchesData, customersData] = await Promise.all([
+      const [productsData, branchesData, customersData, salesData] = await Promise.all([
         catalogService.getAllProducts(),
         inventoryService.getAllBranches(),
         salesService.getAllCustomers(),
+        salesService.getAllSales(),
       ]);
+      console.log('Customers data received:', customersData);
       setProducts(productsData.filter((p) => p.status === 'ACTIVE'));
       setBranches(branchesData.filter((b) => b.status === 'ACTIVE' || b.active));
-      setCustomers(customersData.filter((c) => c.active));
+      setCustomers(Array.isArray(customersData) ? customersData.filter((c) => c.active !== false) : []);
+      setSales(salesData);
+      console.log('Customers set:', Array.isArray(customersData) ? customersData.filter((c) => c.active !== false) : []);
     } catch (error) {
       toast.error('Error al cargar datos');
-      console.error(error);
+      console.error('Load data error:', error);
     } finally {
       setLoading(false);
     }
@@ -152,19 +169,47 @@ const PointOfSale: React.FC = () => {
     try {
       const customerData: CreateCustomerRequest = {
         identificationNumber: data.identificationNumber,
+        identificationType: 'CI',
         firstName: data.firstName,
         lastName: data.lastName,
-        email: data.email,
-        phone: data.phone,
+        email: data.email || '',
+        phone: data.phone || '',
+        address: data.address || 'N/A',
+        city: 'Quito',
+        birthDate: data.birthDate || '2000-01-01',
+        type: 'REGULAR',
       };
+      console.log('Creating customer:', customerData);
       const newCustomer = await salesService.createCustomer(customerData);
+      console.log('Customer created:', newCustomer);
       setCustomers([...customers, newCustomer]);
       setSelectedCustomer(newCustomer);
       toast.success('Cliente creado exitosamente');
       setIsCustomerModalOpen(false);
       reset();
-    } catch (error) {
-      toast.error('Error al crear cliente');
+    } catch (error: any) {
+      let errorMsg = 'Error al crear cliente';
+      
+      console.error('Customer creation error:', error);
+      console.error('Error response data:', error.response?.data);
+      
+      // Mostrar detalles de validación si existen
+      if (error.response?.data?.errors) {
+        const validationErrors = error.response.data.errors;
+        console.error('Validation errors:', validationErrors);
+        const errorList = Object.entries(validationErrors)
+          .map(([field, msg]) => `${field}: ${msg}`)
+          .join('; ');
+        errorMsg = `Errores: ${errorList}`;
+      } else if (error.response?.data?.error) {
+        errorMsg = error.response.data.error;
+      } else if (error.response?.data?.message) {
+        errorMsg = error.response.data.message;
+      } else if (error.message) {
+        errorMsg = error.message;
+      }
+      
+      toast.error(errorMsg);
     }
   };
 
@@ -212,21 +257,51 @@ const PointOfSale: React.FC = () => {
         discount,
         total: calculateTotal(),
         paymentMethod,
+        cashierName: 'Cajero Web',
         items,
       };
 
+      console.log('Processing sale with data:', saleData);
       const sale = await salesService.createSale(saleData);
+      console.log('Sale processed:', sale);
       setSaleNumber(sale.saleNumber);
+      setLastSaleDetails({
+        total: saleData.total,
+        items: saleData.items.length,
+        customer: `${selectedCustomer.firstName} ${selectedCustomer.lastName}`,
+        paymentMethod: paymentMethod,
+      });
       setIsSuccessModalOpen(true);
 
       // Limpiar carrito
       setCart([]);
       setDiscount(0);
       setSelectedCustomer(null);
+      
+      // Recargar ventas para actualizar el historial
+      const updatedSales = await salesService.getAllSales();
+      setSales(updatedSales);
+      
       toast.success('Venta procesada exitosamente');
-    } catch (error) {
-      toast.error('Error al procesar la venta');
-      console.error(error);
+    } catch (error: any) {
+      console.error('Sale processing error:', error);
+      console.error('Error response:', error.response?.data);
+      
+      let errorMsg = 'Error al procesar la venta';
+      if (error.response?.data?.errors) {
+        const validationErrors = Object.entries(error.response.data.errors)
+          .map(([field, msg]) => `${field}: ${msg}`)
+          .join('; ');
+        errorMsg = `Errores: ${validationErrors}`;
+      } else if (error.response?.data?.error) {
+        errorMsg = error.response.data.error;
+      } else if (error.response?.data?.message) {
+        errorMsg = error.response.data.message;
+      } else if (error.message) {
+        errorMsg = error.message;
+      }
+      
+      toast.error(errorMsg);
     } finally {
       setProcessing(false);
     }
@@ -247,9 +322,40 @@ const PointOfSale: React.FC = () => {
   }
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full">
-      {/* LEFT: Product Catalog */}
-      <div className="lg:col-span-2 space-y-4">
+    <div className="space-y-4">
+      {/* Tabs */}
+      <div className="bg-white rounded-lg shadow-md">
+        <div className="border-b">
+          <nav className="flex -mb-px">
+            <button
+              onClick={() => setActiveView('pos')}
+              className={`px-6 py-3 text-sm font-medium border-b-2 ${
+                activeView === 'pos'
+                  ? 'border-primary-600 text-primary-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Punto de Venta
+            </button>
+            <button
+              onClick={() => setActiveView('history')}
+              className={`px-6 py-3 text-sm font-medium border-b-2 ${
+                activeView === 'history'
+                  ? 'border-primary-600 text-primary-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Historial de Ventas ({sales.length})
+            </button>
+          </nav>
+        </div>
+      </div>
+
+      {/* View: Punto de Venta */}
+      {activeView === 'pos' && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full">
+          {/* LEFT: Product Catalog */}
+          <div className="lg:col-span-2 space-y-4">
         <div className="bg-white rounded-lg shadow-md p-4">
           <input
             type="text"
@@ -407,17 +513,22 @@ const PointOfSale: React.FC = () => {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Método de Pago</label>
             <div className="space-y-2">
-              {Object.values(PaymentMethod).map((method) => (
-                <label key={method} className="flex items-center space-x-2">
+              {Object.entries({
+                [PaymentMethod.CASH]: 'Efectivo',
+                [PaymentMethod.CARD]: 'Tarjeta',
+                [PaymentMethod.TRANSFER]: 'Transferencia',
+                [PaymentMethod.CHECK]: 'Cheque',
+              }).map(([value, label]) => (
+                <label key={value} className="flex items-center space-x-2">
                   <input
                     type="radio"
                     name="paymentMethod"
-                    value={method}
-                    checked={paymentMethod === method}
+                    value={value}
+                    checked={paymentMethod === value}
                     onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
                     className="w-4 h-4 text-primary-600"
                   />
-                  <span className="text-sm">{method}</span>
+                  <span className="text-sm">{label}</span>
                 </label>
               ))}
             </div>
@@ -432,7 +543,111 @@ const PointOfSale: React.FC = () => {
             {processing ? 'PROCESANDO...' : 'PROCESAR VENTA'}
           </button>
         </div>
+        </div>
       </div>
+      )}
+
+      {/* View: Historial de Ventas */}
+      {activeView === 'history' && (
+        <div className="bg-white rounded-lg shadow-md p-6">
+          <h2 className="text-2xl font-bold mb-4">Historial de Ventas</h2>
+          
+          {sales.length === 0 ? (
+            <div className="text-center py-12 text-gray-500">
+              <p className="text-lg">No hay ventas registradas</p>
+              <p className="text-sm mt-2">Las ventas aparecerán aquí una vez que las proceses</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
+                      N° Venta
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
+                      Fecha
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
+                      Cliente
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
+                      Sucursal
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
+                      M. Pago
+                    </th>
+                    <th className="px-6 py-3 text-right text-xs font-semibold text-gray-600 uppercase">
+                      Total
+                    </th>
+                    <th className="px-6 py-3 text-center text-xs font-semibold text-gray-600 uppercase">
+                      Estado
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {sales.map((sale) => {
+                    // El backend puede incluir el objeto customer completo o solo el ID
+                    const customer = sale.customer || customers.find((c) => c.id === sale.customerId);
+                    const branch = sale.branch || branches.find((b) => b.id === sale.branchId);
+                    
+                    // Debug logging
+                    if (!customer) {
+                      console.log('Customer not found for sale:', sale.id, 'customerId:', sale.customerId);
+                      console.log('Available customers:', customers.map(c => c.id));
+                    }
+                    
+                    return (
+                      <tr key={sale.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 text-sm font-medium text-primary-600">
+                          {sale.saleNumber}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-900">
+                          {new Date(sale.saleDate || sale.createdAt || '').toLocaleString('es-EC', {
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-900">
+                          {customer ? `${customer.firstName} ${customer.lastName}` : '-'}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-900">
+                          {branch?.name || '-'}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-900">
+                          {sale.paymentMethod === 'CASH' && 'Efectivo'}
+                          {sale.paymentMethod === 'CARD' && 'Tarjeta'}
+                          {sale.paymentMethod === 'TRANSFER' && 'Transferencia'}
+                          {sale.paymentMethod === 'CHECK' && 'Cheque'}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-right font-semibold text-gray-900">
+                          ${sale.total.toFixed(2)}
+                        </td>
+                        <td className="px-6 py-4 text-center">
+                          <span
+                            className={`px-2 py-1 text-xs font-medium rounded-full ${
+                              sale.status === 'COMPLETADA'
+                                ? 'bg-green-100 text-green-800'
+                                : sale.status === 'CANCELADA'
+                                ? 'bg-red-100 text-red-800'
+                                : 'bg-yellow-100 text-yellow-800'
+                            }`}
+                          >
+                            {sale.status}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Customer Modal */}
       <Modal
@@ -496,6 +711,24 @@ const PointOfSale: React.FC = () => {
             />
           </div>
 
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Dirección</label>
+            <input
+              {...register('address')}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2"
+              placeholder="Opcional"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Fecha de Nacimiento</label>
+            <input
+              type="date"
+              {...register('birthDate')}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2"
+            />
+          </div>
+
           <div className="flex justify-end space-x-3 pt-4">
             <button
               type="button"
@@ -528,14 +761,66 @@ const PointOfSale: React.FC = () => {
         <div className="text-center py-6">
           <div className="text-6xl mb-4">✅</div>
           <p className="text-xl font-semibold mb-2">Venta procesada correctamente</p>
-          <p className="text-gray-600 mb-4">Número de venta:</p>
-          <p className="text-2xl font-bold text-primary-600 mb-6">{saleNumber}</p>
-          <button
-            onClick={() => setIsSuccessModalOpen(false)}
-            className="bg-primary-600 text-white px-6 py-2 rounded-lg hover:bg-primary-700"
-          >
-            Cerrar
-          </button>
+          
+          <div className="bg-gray-50 rounded-lg p-4 my-6 text-left">
+            <div className="space-y-2">
+              <div className="flex justify-between">
+                <span className="font-medium">Número de venta:</span>
+                <span className="font-bold text-primary-600">{saleNumber}</span>
+              </div>
+              {lastSaleDetails && (
+                <>
+                  <div className="flex justify-between">
+                    <span className="font-medium">Cliente:</span>
+                    <span>{lastSaleDetails.customer}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="font-medium">Productos:</span>
+                    <span>{lastSaleDetails.items} items</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="font-medium">Método de pago:</span>
+                    <span>
+                      {lastSaleDetails.paymentMethod === 'CASH' && 'Efectivo'}
+                      {lastSaleDetails.paymentMethod === 'CARD' && 'Tarjeta'}
+                      {lastSaleDetails.paymentMethod === 'TRANSFER' && 'Transferencia'}
+                      {lastSaleDetails.paymentMethod === 'CHECK' && 'Cheque'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between border-t pt-2 mt-2">
+                    <span className="font-bold text-lg">Total:</span>
+                    <span className="font-bold text-lg text-primary-600">
+                      ${lastSaleDetails.total.toFixed(2)}
+                    </span>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+          
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+            <p className="text-sm text-blue-800">
+              💡 Puedes ver esta venta reflejada en el <strong>Dashboard</strong> (métricas actualizadas) y en el <strong>Inventario</strong> (stock actualizado).
+            </p>
+          </div>
+
+          <div className="flex gap-3 justify-center">
+            <button
+              onClick={() => {
+                setIsSuccessModalOpen(false);
+                window.location.href = '/dashboard';
+              }}
+              className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700"
+            >
+              Ver Dashboard
+            </button>
+            <button
+              onClick={() => setIsSuccessModalOpen(false)}
+              className="bg-primary-600 text-white px-6 py-2 rounded-lg hover:bg-primary-700"
+            >
+              Nueva Venta
+            </button>
+          </div>
         </div>
       </Modal>
     </div>

@@ -2,13 +2,16 @@
 export interface Customer {
   id?: number;
   identificationNumber: string;
+  identificationType?: string;
   firstName: string;
   lastName: string;
   email?: string;
   phone?: string;
   address?: string;
+  city?: string;
   birthDate?: string;
-  active: boolean;
+  type?: string;
+  active?: boolean;
   createdAt?: string;
 }
 
@@ -43,9 +46,10 @@ export interface SaleItem {
 }
 
 export enum PaymentMethod {
-  EFECTIVO = 'EFECTIVO',
-  TARJETA = 'TARJETA',
-  TRANSFERENCIA = 'TRANSFERENCIA'
+  CASH = 'CASH',
+  CARD = 'CARD',
+  TRANSFER = 'TRANSFER',
+  CHECK = 'CHECK'
 }
 
 export enum SaleStatus {
@@ -56,12 +60,15 @@ export enum SaleStatus {
 
 export interface CreateCustomerRequest {
   identificationNumber: string;
+  identificationType?: string;
   firstName: string;
   lastName: string;
   email?: string;
   phone?: string;
   address?: string;
+  city?: string;
   birthDate?: string;
+  type?: string;
 }
 
 export interface CreateSaleRequest {
@@ -72,6 +79,7 @@ export interface CreateSaleRequest {
   discount: number;
   total: number;
   paymentMethod: PaymentMethod;
+  cashierName?: string;
   items: CreateSaleItemRequest[];
 }
 

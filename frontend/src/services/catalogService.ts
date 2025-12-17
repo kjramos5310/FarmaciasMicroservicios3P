@@ -5,6 +5,8 @@ import {
   Laboratory,
   CreateProductRequest,
   UpdateProductRequest,
+  CreateCategoryRequest,
+  CreateLaboratoryRequest,
 } from '../types';
 
 export const catalogService = {
@@ -94,6 +96,24 @@ export const catalogService = {
   getLaboratoryById: async (id: number): Promise<Laboratory> => {
     try {
       const response = await catalogApi.get(`/laboratories/${id}`);
+      return response.data.data || response.data;
+    } catch (error) {
+      throw new Error(handleApiError(error));
+    }
+  },
+
+  createLaboratory: async (laboratory: CreateLaboratoryRequest): Promise<Laboratory> => {
+    try {
+      const response = await catalogApi.post('/laboratories', laboratory);
+      return response.data.data || response.data;
+    } catch (error) {
+      throw new Error(handleApiError(error));
+    }
+  },
+
+  createCategory: async (category: CreateCategoryRequest): Promise<Category> => {
+    try {
+      const response = await catalogApi.post('/categories', category);
       return response.data.data || response.data;
     } catch (error) {
       throw new Error(handleApiError(error));

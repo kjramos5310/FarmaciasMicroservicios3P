@@ -64,3 +64,19 @@ export interface UpdateProductRequest extends CreateProductRequest {
   id: number;
   active?: boolean;
 }
+
+export interface CreateCategoryRequest {
+  code: string;
+  name: string;
+  description?: string;
+  isActive?: boolean;
+}
+
+export interface CreateLaboratoryRequest {
+  name: string;
+  country?: string;
+  contactEmail?: string;
+  phone?: string;
+  website?: string;
+  isActive?: boolean;
+}

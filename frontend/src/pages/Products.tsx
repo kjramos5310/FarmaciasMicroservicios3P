@@ -4,7 +4,7 @@ import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
 import { Modal, LoadingSpinner } from '../components';
 import { catalogService } from '../services';
-import { Product, Category, Laboratory, CreateProductRequest } from '../types';
+import { Product, Category, Laboratory, CreateProductRequest, CreateCategoryRequest, CreateLaboratoryRequest } from '../types';
 import { toast } from 'react-toastify';
 
 interface ProductFormData {
@@ -36,12 +36,28 @@ const productSchema = yup.object().shape({
   isControlled: yup.boolean().optional().default(false),
 });
 
+const categorySchema = yup.object().shape({
+  code: yup.string().required('Código es requerido').max(20, 'Máximo 20 caracteres'),
+  name: yup.string().required('Nombre es requerido').max(100, 'Máximo 100 caracteres'),
+  description: yup.string().optional(),
+});
+
+const laboratorySchema = yup.object().shape({
+  name: yup.string().required('Nombre es requerido').max(200, 'Máximo 200 caracteres'),
+  country: yup.string().optional().max(100, 'Máximo 100 caracteres'),
+  contactEmail: yup.string().optional().email('Email inválido'),
+  phone: yup.string().optional().max(20, 'Máximo 20 caracteres'),
+  website: yup.string().optional().url('URL inválida'),
+});
+
 const Products: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [laboratories, setLaboratories] = useState<Laboratory[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+  const [isLaboratoryModalOpen, setIsLaboratoryModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState<number | ''>('');
@@ -54,6 +70,24 @@ const Products: React.FC = () => {
     formState: { errors, isSubmitting },
   } = useForm<ProductFormData>({
     resolver: yupResolver(productSchema) as any,
+  });
+
+  const {
+    register: registerCategory,
+    handleSubmit: handleSubmitCategory,
+    reset: resetCategory,
+    formState: { errors: errorsCategory, isSubmitting: isSubmittingCategory },
+  } = useForm<CreateCategoryRequest>({
+    resolver: yupResolver(categorySchema) as any,
+  });
+
+  const {
+    register: registerLaboratory,
+    handleSubmit: handleSubmitLaboratory,
+    reset: resetLaboratory,
+    formState: { errors: errorsLaboratory, isSubmitting: isSubmittingLaboratory },
+  } = useForm<CreateLaboratoryRequest>({
+    resolver: yupResolver(laboratorySchema) as any,
   });
 
   useEffect(() => {
@@ -115,6 +149,42 @@ const Products: React.FC = () => {
       loadInitialData();
     } catch (error) {
       toast.error('Error al guardar producto');
+      console.error(error);
+    }
+  };
+
+  const onSubmitCategory = async (data: CreateCategoryRequest) => {
+    try {
+      await catalogService.createCategory({
+        ...data,
+        isActive: true,
+      });
+      toast.success('Categoría creada exitosamente');
+      setIsCategoryModalOpen(false);
+      resetCategory();
+      // Reload categories
+      const categoriesData = await catalogService.getAllCategories();
+      setCategories(Array.isArray(categoriesData) ? categoriesData : []);
+    } catch (error) {
+      toast.error('Error al crear categoría');
+      console.error(error);
+    }
+  };
+
+  const onSubmitLaboratory = async (data: CreateLaboratoryRequest) => {
+    try {
+      await catalogService.createLaboratory({
+        ...data,
+        isActive: true,
+      });
+      toast.success('Laboratorio creado exitosamente');
+      setIsLaboratoryModalOpen(false);
+      resetLaboratory();
+      // Reload laboratories
+      const laboratoriesData = await catalogService.getAllLaboratories();
+      setLaboratories(Array.isArray(laboratoriesData) ? laboratoriesData : []);
+    } catch (error) {
+      toast.error('Error al crear laboratorio');
       console.error(error);
     }
   };
@@ -353,17 +423,27 @@ const Products: React.FC = () => {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Categoría *
               </label>
-              <select
-                {...register('categoryId')}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
-              >
-                <option value="">Seleccione...</option>
-                {categories.map((cat) => (
-                  <option key={cat.id} value={cat.id}>
-                    {cat.name}
-                  </option>
-                ))}
-              </select>
+              <div className="flex gap-2">
+                <select
+                  {...register('categoryId')}
+                  className="flex-1 border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                >
+                  <option value="">Seleccione...</option>
+                  {categories.map((cat) => (
+                    <option key={cat.id} value={cat.id}>
+                      {cat.name}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => setIsCategoryModalOpen(true)}
+                  className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                  title="Agregar nueva categoría"
+                >
+                  +
+                </button>
+              </div>
               {errors.categoryId && (
                 <p className="text-red-500 text-xs mt-1">{errors.categoryId.message}</p>
               )}
@@ -373,17 +453,27 @@ const Products: React.FC = () => {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Laboratorio *
               </label>
-              <select
-                {...register('laboratoryId')}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
-              >
-                <option value="">Seleccione...</option>
-                {laboratories.map((lab) => (
-                  <option key={lab.id} value={lab.id}>
-                    {lab.name}
-                  </option>
-                ))}
-              </select>
+              <div className="flex gap-2">
+                <select
+                  {...register('laboratoryId')}
+                  className="flex-1 border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                >
+                  <option value="">Seleccione...</option>
+                  {laboratories.map((lab) => (
+                    <option key={lab.id} value={lab.id}>
+                      {lab.name}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => setIsLaboratoryModalOpen(true)}
+                  className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                  title="Agregar nuevo laboratorio"
+                >
+                  +
+                </button>
+              </div>
               {errors.laboratoryId && (
                 <p className="text-red-500 text-xs mt-1">{errors.laboratoryId.message}</p>
               )}
@@ -439,6 +529,175 @@ const Products: React.FC = () => {
               className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50"
             >
               {isSubmitting ? 'Guardando...' : 'Guardar'}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Modal Crear Categoría */}
+      <Modal
+        isOpen={isCategoryModalOpen}
+        onClose={() => {
+          setIsCategoryModalOpen(false);
+          resetCategory();
+        }}
+        title="Nueva Categoría"
+      >
+        <form onSubmit={handleSubmitCategory(onSubmitCategory)} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Código *
+            </label>
+            <input
+              {...registerCategory('code')}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+            />
+            {errorsCategory.code && (
+              <p className="text-red-500 text-xs mt-1">{errorsCategory.code.message}</p>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Nombre *
+            </label>
+            <input
+              {...registerCategory('name')}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+            />
+            {errorsCategory.name && (
+              <p className="text-red-500 text-xs mt-1">{errorsCategory.name.message}</p>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Descripción
+            </label>
+            <textarea
+              {...registerCategory('description')}
+              rows={3}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+            />
+          </div>
+
+          <div className="flex justify-end space-x-3 pt-4">
+            <button
+              type="button"
+              onClick={() => {
+                setIsCategoryModalOpen(false);
+                resetCategory();
+              }}
+              className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={isSubmittingCategory}
+              className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50"
+            >
+              {isSubmittingCategory ? 'Guardando...' : 'Guardar'}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Modal Crear Laboratorio */}
+      <Modal
+        isOpen={isLaboratoryModalOpen}
+        onClose={() => {
+          setIsLaboratoryModalOpen(false);
+          resetLaboratory();
+        }}
+        title="Nuevo Laboratorio"
+      >
+        <form onSubmit={handleSubmitLaboratory(onSubmitLaboratory)} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Nombre *
+            </label>
+            <input
+              {...registerLaboratory('name')}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+            />
+            {errorsLaboratory.name && (
+              <p className="text-red-500 text-xs mt-1">{errorsLaboratory.name.message}</p>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              País
+            </label>
+            <input
+              {...registerLaboratory('country')}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+            />
+            {errorsLaboratory.country && (
+              <p className="text-red-500 text-xs mt-1">{errorsLaboratory.country.message}</p>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Email de Contacto
+            </label>
+            <input
+              type="email"
+              {...registerLaboratory('contactEmail')}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+            />
+            {errorsLaboratory.contactEmail && (
+              <p className="text-red-500 text-xs mt-1">{errorsLaboratory.contactEmail.message}</p>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Teléfono
+            </label>
+            <input
+              {...registerLaboratory('phone')}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+            />
+            {errorsLaboratory.phone && (
+              <p className="text-red-500 text-xs mt-1">{errorsLaboratory.phone.message}</p>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Sitio Web
+            </label>
+            <input
+              type="url"
+              {...registerLaboratory('website')}
+              placeholder="https://ejemplo.com"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+            />
+            {errorsLaboratory.website && (
+              <p className="text-red-500 text-xs mt-1">{errorsLaboratory.website.message}</p>
+            )}
+          </div>
+
+          <div className="flex justify-end space-x-3 pt-4">
+            <button
+              type="button"
+              onClick={() => {
+                setIsLaboratoryModalOpen(false);
+                resetLaboratory();
+              }}
+              className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={isSubmittingLaboratory}
+              className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50"
+            >
+              {isSubmittingLaboratory ? 'Guardando...' : 'Guardar'}
             </button>
           </div>
         </form>
