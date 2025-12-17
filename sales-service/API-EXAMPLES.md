@@ -52,12 +52,14 @@ Content-Type: application/json
     {
       "productId": 1,
       "quantity": 2,
+      "unitPrice": 15.50,
       "discount": 0,
       "requiresPrescription": false
     },
     {
       "productId": 2,
       "quantity": 1,
+      "unitPrice": 25.00,
       "discount": 5.00,
       "requiresPrescription": false
     }
@@ -68,6 +70,8 @@ Content-Type: application/json
   "notes": "Venta de mostrador"
 }
 ```
+
+**Nota**: El campo `unitPrice` es opcional. Si no se proporciona, el sistema intentará obtener el precio desde el `catalog-service`. Si el catalog-service no está disponible y no se proporciona `unitPrice`, la venta fallará.
 
 ## 4. Crear Venta con Prescripción
 
@@ -82,12 +86,14 @@ Content-Type: application/json
     {
       "productId": 5,
       "quantity": 1,
+      "unitPrice": 45.00,
       "requiresPrescription": true,
       "prescriptionId": 1
     },
     {
       "productId": 3,
       "quantity": 2,
+      "unitPrice": 12.50,
       "requiresPrescription": false
     }
   ],

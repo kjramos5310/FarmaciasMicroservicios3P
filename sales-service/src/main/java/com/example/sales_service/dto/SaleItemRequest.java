@@ -20,6 +20,8 @@ public class SaleItemRequest {
     @Positive(message = "La cantidad debe ser mayor a cero")
     private Integer quantity;
     
+    private BigDecimal unitPrice;
+    
     private BigDecimal discount;
     
     private Long batchId;

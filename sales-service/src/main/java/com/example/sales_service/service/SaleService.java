@@ -102,23 +102,42 @@ public class SaleService {
         log.debug("Procesando item - ProductoID: {}", itemRequest.getProductId());
         
         // Obtener información del producto desde catalog-service
-        ProductDTO product;
+        ProductDTO product = null;
         try {
             product = catalogClient.getProductById(itemRequest.getProductId());
         } catch (Exception e) {
-            log.error("Error al obtener producto {}: {}", itemRequest.getProductId(), e.getMessage());
-            throw new InvalidSaleException("No se pudo obtener información del producto ID: " + itemRequest.getProductId());
+            log.warn("No se pudo obtener información del catálogo para producto {}: {}. Usando datos del request.", 
+                    itemRequest.getProductId(), e.getMessage());
         }
+        
+        // Determinar precio unitario
+        BigDecimal unitPrice;
+        if (itemRequest.getUnitPrice() != null) {
+            unitPrice = itemRequest.getUnitPrice();
+            log.debug("Usando precio del request: {}", unitPrice);
+        } else if (product != null && product.getPrice() != null) {
+            unitPrice = product.getPrice();
+            log.debug("Usando precio del catálogo: {}", unitPrice);
+        } else {
+            throw new InvalidSaleException("No se pudo determinar el precio del producto ID: " + itemRequest.getProductId() + 
+                    ". Proporcione el unitPrice en el request o asegúrese de que catalog-service esté disponible.");
+        }
+        
+        // Determinar nombre y código del producto
+        String productName = product != null && product.getName() != null ? 
+                product.getName() : "Producto " + itemRequest.getProductId();
+        String productCode = product != null && product.getCode() != null ? 
+                product.getCode() : "PROD-" + itemRequest.getProductId();
         
         // Verificar si requiere prescripción
         boolean requiresPrescription = itemRequest.getRequiresPrescription() != null ? 
                 itemRequest.getRequiresPrescription() : 
-                (product.getRequiresPrescription() != null && product.getRequiresPrescription());
+                (product != null && product.getRequiresPrescription() != null && product.getRequiresPrescription());
         
         if (requiresPrescription) {
             if (itemRequest.getPrescriptionId() == null) {
                 throw new PrescriptionRequiredException(
-                        "El producto '" + product.getName() + "' requiere prescripción médica");
+                        "El producto '" + productName + "' requiere prescripción médica");
             }
             
             Prescription prescription = prescriptionRepository.findById(itemRequest.getPrescriptionId())
@@ -134,11 +153,11 @@ public class SaleService {
         // Crear SaleItem con desnormalización
         SaleItem saleItem = new SaleItem();
         saleItem.setSale(sale);
-        saleItem.setProductId(product.getId());
-        saleItem.setProductName(product.getName()); // Desnormalizado
-        saleItem.setProductCode(product.getCode()); // Desnormalizado
+        saleItem.setProductId(itemRequest.getProductId());
+        saleItem.setProductName(productName); // Desnormalizado
+        saleItem.setProductCode(productCode); // Desnormalizado
         saleItem.setQuantity(itemRequest.getQuantity());
-        saleItem.setUnitPrice(product.getPrice());
+        saleItem.setUnitPrice(unitPrice);
         saleItem.setRequiresPrescription(requiresPrescription);
         saleItem.setBatchId(itemRequest.getBatchId());
         
@@ -150,14 +169,14 @@ public class SaleService {
         BigDecimal itemDiscount = itemRequest.getDiscount() != null ? itemRequest.getDiscount() : BigDecimal.ZERO;
         saleItem.setDiscount(itemDiscount);
         
-        BigDecimal itemSubtotal = product.getPrice()
+        BigDecimal itemSubtotal = unitPrice
                 .multiply(BigDecimal.valueOf(itemRequest.getQuantity()))
                 .subtract(itemDiscount)
                 .setScale(2, RoundingMode.HALF_UP);
         saleItem.setSubtotal(itemSubtotal);
         
         log.debug("Item procesado - {}: {} x {} = {}", 
-                  product.getName(), itemRequest.getQuantity(), product.getPrice(), itemSubtotal);
+                  productName, itemRequest.getQuantity(), unitPrice, itemSubtotal);
         
         return saleItem;
     }

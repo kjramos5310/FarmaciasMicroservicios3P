@@ -42,8 +42,7 @@ public class Prescription {
     @Column(nullable = false)
     private LocalDate expirationDate;
     
-    @Lob
-    @Column(columnDefinition = "BYTEA")
+    @Column(name = "scanned_document", columnDefinition = "bytea")
     private byte[] scannedDocument;
     
     @Column(columnDefinition = "TEXT")

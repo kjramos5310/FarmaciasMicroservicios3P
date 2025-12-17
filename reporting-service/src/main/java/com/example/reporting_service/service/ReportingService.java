@@ -13,9 +13,12 @@ import org.springframework.web.reactive.function.client.WebClient;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.stream.Collectors;
+import com.fasterxml.jackson.databind.JsonNode;
 
 @Service
 @RequiredArgsConstructor
@@ -309,18 +312,45 @@ public class ReportingService {
     // Private methods to fetch data from external services
     private List<SaleData> fetchSalesData(LocalDate startDate, LocalDate endDate, Long branchId) {
         try {
-            String uri = "/api/sales/date-range?startDate=" + startDate + "&endDate=" + endDate;
+            // Convert LocalDate to LocalDateTime (start of day and end of day)
+            LocalDateTime start = startDate.atStartOfDay();
+            LocalDateTime end = endDate.atTime(LocalTime.MAX);
+            
+            String uri = "/api/sales/date-range?start=" + start + "&end=" + end;
             if (branchId != null) {
                 uri += "&branchId=" + branchId;
             }
             
-            List<SaleData> sales = salesWebClient.get()
+            // Sales-service returns Page<Sale>, we need to extract content
+            JsonNode response = salesWebClient.get()
                     .uri(uri)
                     .retrieve()
-                    .bodyToMono(new ParameterizedTypeReference<List<SaleData>>() {})
+                    .bodyToMono(JsonNode.class)
                     .block();
             
-            return sales != null ? sales : new ArrayList<>();
+            if (response == null || !response.has("content")) {
+                return new ArrayList<>();
+            }
+            
+            List<SaleData> sales = new ArrayList<>();
+            response.get("content").forEach(saleNode -> {
+                try {
+                    SaleData sale = SaleData.builder()
+                            .id(saleNode.get("id").asLong())
+                            .branchId(saleNode.get("branchId").asLong())
+                            .customerId(saleNode.get("customer").get("id").asLong())
+                            .totalAmount(new BigDecimal(saleNode.get("total").asText()))
+                            .itemCount(saleNode.get("items").size())
+                            .saleDate(saleNode.has("saleDate") ? LocalDate.parse(saleNode.get("saleDate").asText().substring(0, 10)) : LocalDate.now())
+                            .status(saleNode.has("status") ? saleNode.get("status").asText() : "UNKNOWN")
+                            .build();
+                    sales.add(sale);
+                } catch (Exception e) {
+                    log.warn("Error parsing sale node: {}", e.getMessage());
+                }
+            });
+            
+            return sales;
         } catch (Exception e) {
             log.error("Error fetching sales data: {}", e.getMessage());
             return new ArrayList<>();
@@ -329,18 +359,42 @@ public class ReportingService {
     
     private List<StockData> fetchInventoryData(Long branchId) {
         try {
-            String uri = "/api/stock";
-            if (branchId != null) {
-                uri += "?branchId=" + branchId;
-            }
+            String uri = branchId != null ? "/api/stock/" + branchId : "/api/stock";
             
-            List<StockData> stocks = inventoryWebClient.get()
+            // Inventory-service returns ApiResponse<List<StockResponse>>
+            JsonNode response = inventoryWebClient.get()
                     .uri(uri)
                     .retrieve()
-                    .bodyToMono(new ParameterizedTypeReference<List<StockData>>() {})
+                    .bodyToMono(JsonNode.class)
                     .block();
             
-            return stocks != null ? stocks : new ArrayList<>();
+            if (response == null || !response.has("data")) {
+                return new ArrayList<>();
+            }
+            
+            List<StockData> stocks = new ArrayList<>();
+            JsonNode dataNode = response.get("data");
+            
+            if (dataNode.isArray()) {
+                dataNode.forEach(stockNode -> {
+                    try {
+                        StockData stock = StockData.builder()
+                                .id(stockNode.has("id") ? stockNode.get("id").asLong() : null)
+                                .productId(stockNode.get("productId").asLong())
+                                .branchId(stockNode.get("branchId").asLong())
+                                .quantity(stockNode.get("quantity").asInt())
+                                .minStock(stockNode.has("minimumStock") ? stockNode.get("minimumStock").asInt() : 0)
+                                .unitPrice(stockNode.has("unitPrice") ? new BigDecimal(stockNode.get("unitPrice").asText()) : BigDecimal.ZERO)
+                                .productName(stockNode.has("productName") ? stockNode.get("productName").asText() : null)
+                                .build();
+                        stocks.add(stock);
+                    } catch (Exception e) {
+                        log.warn("Error parsing stock node: {}", e.getMessage());
+                    }
+                });
+            }
+            
+            return stocks;
         } catch (Exception e) {
             log.error("Error fetching inventory data: {}", e.getMessage());
             return new ArrayList<>();

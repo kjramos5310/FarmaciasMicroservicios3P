@@ -1,5 +1,6 @@
 package com.example.sales_service.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -20,6 +21,7 @@ public class SaleItem {
     
     @ManyToOne
     @JoinColumn(name = "sale_id", nullable = false)
+    @JsonIgnoreProperties("items")
     private Sale sale;
     
     @Column(nullable = false)
@@ -50,5 +52,6 @@ public class SaleItem {
     
     @ManyToOne
     @JoinColumn(name = "prescription_id")
+    @JsonIgnoreProperties({"customer", "scannedDocument"})
     private Prescription prescription;
 }
