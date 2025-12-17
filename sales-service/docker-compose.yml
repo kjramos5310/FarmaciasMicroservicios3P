@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  sales-db:
+    image: postgres:15-alpine
+    container_name: sales-postgres
+    environment:
+      POSTGRES_DB: sales_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5434:5432"
+    volumes:
+      - sales-db-data:/var/lib/postgresql/data
+    networks:
+      - sales-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  sales-service:
+    build: .
+    container_name: sales-service
+    ports:
+      - "8083:8083"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://sales-db:5432/sales_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      SERVICES_CATALOG_URL: http://catalog-service:8081
+      SERVICES_INVENTORY_URL: http://inventory-service:8082
+    depends_on:
+      sales-db:
+        condition: service_healthy
+    networks:
+      - sales-network
+    restart: unless-stopped
+
+volumes:
+  sales-db-data:
+
+networks:
+  sales-network:
+    driver: bridge
