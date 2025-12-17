@@ -28,9 +28,9 @@ spring:
 
 services:
   catalog:
-    url: http://catalog-service:8081
+    url: http://productos-service:8081
   inventory:
-    url: http://inventory-service:8082
+    url: http://almacen-service:8082
 
 logging:
   level:

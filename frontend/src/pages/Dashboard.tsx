@@ -15,11 +15,14 @@ const Dashboard: React.FC = () => {
   const loadDashboardData = async () => {
     try {
       setLoading(true);
+      console.log('Loading dashboard data...');
       const data = await reportingService.getDashboardMetrics();
+      console.log('Dashboard data received:', data);
       setMetrics(data);
-    } catch (error) {
+    } catch (error: any) {
+      console.error('Dashboard error:', error);
+      console.error('Error details:', error.response?.data);
       toast.error('Error al cargar datos del dashboard');
-      console.error(error);
     } finally {
       setLoading(false);
     }
@@ -33,13 +36,20 @@ const Dashboard: React.FC = () => {
     );
   }
 
-  if (!metrics) {
-    return (
-      <div className="text-center text-gray-500 p-8">
-        No se pudieron cargar los datos del dashboard
-      </div>
-    );
-  }
+  // Usar valores predeterminados si no hay métricas
+  const salesMetrics = metrics?.salesMetrics || {
+    totalRevenue: 0,
+    totalSales: 0,
+    averageTicket: 0,
+    uniqueCustomers: 0
+  };
+
+  const inventoryMetrics = metrics?.inventoryMetrics || {
+    totalProducts: 0,
+    lowStockProducts: 0,
+    expiringSoon: 0,
+    totalInventoryValue: 0
+  };
 
   return (
     <div className="space-y-6">
@@ -47,25 +57,25 @@ const Dashboard: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card
           title="Total Productos"
-          value={metrics.inventoryMetrics?.totalProducts ?? 0}
+          value={inventoryMetrics.totalProducts}
           icon="💊"
           color="blue"
         />
         <Card
           title="Stock Bajo"
-          value={metrics.inventoryMetrics?.lowStockProducts ?? 0}
+          value={inventoryMetrics.lowStockProducts}
           icon="⚠️"
           color="red"
         />
         <Card
           title="Ingresos Totales"
-          value={`$${(metrics.salesMetrics?.totalRevenue ?? 0).toFixed(2)}`}
+          value={`$${salesMetrics.totalRevenue.toFixed(2)}`}
           icon="💰"
           color="green"
         />
         <Card
           title="Total Ventas"
-          value={metrics.salesMetrics?.totalSales ?? 0}
+          value={salesMetrics.totalSales}
           icon="🛒"
           color="yellow"
         />
@@ -75,19 +85,19 @@ const Dashboard: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <Card
           title="Ticket Promedio"
-          value={`$${(metrics.salesMetrics?.averageTicket ?? 0).toFixed(2)}`}
+          value={`$${salesMetrics.averageTicket.toFixed(2)}`}
           icon="💳"
           color="blue"
         />
         <Card
           title="Clientes Únicos"
-          value={metrics.salesMetrics?.uniqueCustomers ?? 0}
+          value={salesMetrics.uniqueCustomers}
           icon="👥"
           color="green"
         />
         <Card
           title="Valor Inventario"
-          value={`$${(metrics.inventoryMetrics?.totalInventoryValue ?? 0).toFixed(2)}`}
+          value={`$${inventoryMetrics.totalInventoryValue.toFixed(2)}`}
           icon="📦"
           color="yellow"
         />
@@ -100,19 +110,19 @@ const Dashboard: React.FC = () => {
           <div className="text-center p-4 bg-blue-50 rounded-lg">
             <p className="text-sm text-gray-600">Total Productos</p>
             <p className="text-2xl font-bold text-blue-600">
-              {metrics.inventoryMetrics?.totalProducts ?? 0}
+              {inventoryMetrics.totalProducts}
             </p>
           </div>
           <div className="text-center p-4 bg-red-50 rounded-lg">
             <p className="text-sm text-gray-600">Stock Bajo</p>
             <p className="text-2xl font-bold text-red-600">
-              {metrics.inventoryMetrics?.lowStockProducts ?? 0}
+              {inventoryMetrics.lowStockProducts}
             </p>
           </div>
           <div className="text-center p-4 bg-yellow-50 rounded-lg">
             <p className="text-sm text-gray-600">Próximos a Vencer</p>
             <p className="text-2xl font-bold text-yellow-600">
-              {metrics.inventoryMetrics?.expiringSoon ?? 0}
+              {inventoryMetrics.expiringSoon}
             </p>
           </div>
         </div>
@@ -125,19 +135,19 @@ const Dashboard: React.FC = () => {
           <div className="text-center p-4 bg-green-50 rounded-lg">
             <p className="text-sm text-gray-600">Ingresos Totales</p>
             <p className="text-2xl font-bold text-green-600">
-              ${(metrics.salesMetrics?.totalRevenue ?? 0).toFixed(2)}
+              ${salesMetrics.totalRevenue.toFixed(2)}
             </p>
           </div>
           <div className="text-center p-4 bg-blue-50 rounded-lg">
             <p className="text-sm text-gray-600">Total Ventas</p>
             <p className="text-2xl font-bold text-blue-600">
-              {metrics.salesMetrics?.totalSales ?? 0}
+              {salesMetrics.totalSales}
             </p>
           </div>
           <div className="text-center p-4 bg-purple-50 rounded-lg">
             <p className="text-sm text-gray-600">Ticket Promedio</p>
             <p className="text-2xl font-bold text-purple-600">
-              ${(metrics.salesMetrics?.averageTicket ?? 0).toFixed(2)}
+              ${salesMetrics.averageTicket.toFixed(2)}
             </p>
           </div>
         </div>
