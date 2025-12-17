@@ -1,0 +1,269 @@
+# ==============================================================================
+# DOCKER COMPOSE - SISTEMA DE MICROSERVICIOS DE FARMACIA
+# ==============================================================================
+# Este archivo orquesta todos los servicios necesarios para el sistema:
+# - 4 Bases de datos PostgreSQL (una por microservicio)
+# - 4 Microservicios Spring Boot
+# Todos los servicios se comunican a través de la red 'pharmacy-network'
+# ==============================================================================
+
+services:
+  
+  # ============================================================================
+  # BASES DE DATOS POSTGRESQL
+  # ============================================================================
+  
+  # Base de datos del servicio de catálogo
+  catalog-db:
+    image: postgres:15-alpine
+    container_name: catalog-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: catalog_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - catalog-db-data:/var/lib/postgresql/data
+    networks:
+      - pharmacy-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d catalog_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Base de datos del servicio de inventario
+  inventory-db:
+    image: postgres:15-alpine
+    container_name: inventory-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: inventory_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - inventory-db-data:/var/lib/postgresql/data
+    networks:
+      - pharmacy-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d inventory_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Base de datos del servicio de ventas
+  sales-db:
+    image: postgres:15-alpine
+    container_name: sales-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: sales_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5434:5432"
+    volumes:
+      - sales-db-data:/var/lib/postgresql/data
+    networks:
+      - pharmacy-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d sales_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Base de datos del servicio de reportes
+  reporting-db:
+    image: postgres:15-alpine
+    container_name: reporting-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: reporting_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5435:5432"
+    volumes:
+      - reporting-db-data:/var/lib/postgresql/data
+    networks:
+      - pharmacy-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d reporting_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============================================================================
+  # MICROSERVICIOS SPRING BOOT
+  # ============================================================================
+
+  # Servicio de Catálogo - Gestión de productos farmacéuticos
+  catalog-service:
+    build:
+      context: ./catalog-service
+      dockerfile: Dockerfile
+    container_name: catalog-service
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    environment:
+      # Configuración de base de datos
+      SPRING_DATASOURCE_URL: jdbc:postgresql://catalog-db:5432/catalog_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.postgresql.Driver
+      # Configuración JPA/Hibernate
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SPRING_JPA_SHOW_SQL: "true"
+      SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT: org.hibernate.dialect.PostgreSQLDialect
+      # Configuración del servidor
+      SERVER_PORT: 8081
+    depends_on:
+      catalog-db:
+        condition: service_healthy
+    networks:
+      - pharmacy-network
+    healthcheck:
+      test: ["CMD-SHELL", "timeout 1 sh -c 'echo > /dev/tcp/localhost/8081' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # Servicio de Inventario - Control de stock por sucursal
+  inventory-service:
+    build:
+      context: ./inventory-service
+      dockerfile: Dockerfile
+    container_name: inventory-service
+    restart: unless-stopped
+    ports:
+      - "8082:8082"
+    environment:
+      # Configuración de base de datos
+      SPRING_DATASOURCE_URL: jdbc:postgresql://inventory-db:5432/inventory_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.postgresql.Driver
+      # Configuración JPA/Hibernate
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SPRING_JPA_SHOW_SQL: "true"
+      SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT: org.hibernate.dialect.PostgreSQLDialect
+      # Configuración del servidor
+      SERVER_PORT: 8082
+    depends_on:
+      inventory-db:
+        condition: service_healthy
+    networks:
+      - pharmacy-network
+    healthcheck:
+      test: ["CMD-SHELL", "timeout 1 sh -c 'echo > /dev/tcp/localhost/8082' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # Servicio de Ventas - Procesamiento de transacciones
+  sales-service:
+    build:
+      context: ./sales-service
+      dockerfile: Dockerfile
+    container_name: sales-service
+    restart: unless-stopped
+    ports:
+      - "8083:8083"
+    environment:
+      # Configuración de base de datos
+      SPRING_DATASOURCE_URL: jdbc:postgresql://sales-db:5432/sales_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.postgresql.Driver
+      # Configuración JPA/Hibernate
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SPRING_JPA_SHOW_SQL: "true"
+      SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT: org.hibernate.dialect.PostgreSQLDialect
+      # Configuración del servidor
+      SERVER_PORT: 8083
+      # URLs de microservicios dependientes
+      CATALOG_SERVICE_URL: http://catalog-service:8081
+      INVENTORY_SERVICE_URL: http://inventory-service:8082
+    depends_on:
+      sales-db:
+        condition: service_healthy
+      catalog-service:
+        condition: service_healthy
+      inventory-service:
+        condition: service_healthy
+    networks:
+      - pharmacy-network
+    healthcheck:
+      test: ["CMD-SHELL", "timeout 1 sh -c 'echo > /dev/tcp/localhost/8083' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # Servicio de Reportes - Generación de reportes y estadísticas
+  reporting-service:
+    build:
+      context: ./reporting-service
+      dockerfile: Dockerfile
+    container_name: reporting-service
+    restart: unless-stopped
+    ports:
+      - "8084:8084"
+    environment:
+      # Configuración de base de datos
+      SPRING_DATASOURCE_URL: jdbc:postgresql://reporting-db:5432/reporting_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.postgresql.Driver
+      # Configuración JPA/Hibernate
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SPRING_JPA_SHOW_SQL: "true"
+      SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT: org.hibernate.dialect.PostgreSQLDialect
+      # Configuración del servidor
+      SERVER_PORT: 8084
+      # URLs de microservicios dependientes
+      SALES_SERVICE_URL: http://sales-service:8083
+      INVENTORY_SERVICE_URL: http://inventory-service:8082
+    depends_on:
+      reporting-db:
+        condition: service_healthy
+    networks:
+      - pharmacy-network
+    healthcheck:
+      test: ["CMD-SHELL", "timeout 1 sh -c 'echo > /dev/tcp/localhost/8084' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+# ==============================================================================
+# REDES
+# ==============================================================================
+# Red bridge que conecta todos los servicios
+# Permite la comunicación entre contenedores usando sus nombres como DNS
+networks:
+  pharmacy-network:
+    driver: bridge
+    name: pharmacy-network
+
+# ==============================================================================
+# VOLÚMENES
+# ==============================================================================
+# Volúmenes para persistencia de datos de PostgreSQL
+# Los datos sobreviven al reinicio y eliminación de contenedores
+volumes:
+  catalog-db-data:
+    name: catalog-db-data
+  inventory-db-data:
+    name: inventory-db-data
+  sales-db-data:
+    name: sales-db-data
+  reporting-db-data:
+    name: reporting-db-data

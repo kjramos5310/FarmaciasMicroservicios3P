@@ -1,0 +1,252 @@
+{
+  "info": {
+    "name": "Reporting Service API",
+    "description": "Colección de endpoints para el microservicio de reportes",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Sales Reports",
+      "item": [
+        {
+          "name": "Get Sales Summary",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8084/api/reports/sales/summary?startDate=2025-01-01&endDate=2025-01-31&branchId=1",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8084",
+              "path": ["api", "reports", "sales", "summary"],
+              "query": [
+                {"key": "startDate", "value": "2025-01-01"},
+                {"key": "endDate", "value": "2025-01-31"},
+                {"key": "branchId", "value": "1"}
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Sales by Product",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8084/api/reports/sales/by-product?startDate=2025-01-01&endDate=2025-01-31",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8084",
+              "path": ["api", "reports", "sales", "by-product"],
+              "query": [
+                {"key": "startDate", "value": "2025-01-01"},
+                {"key": "endDate", "value": "2025-01-31"}
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Top Products",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8084/api/reports/sales/top-products?limit=10",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8084",
+              "path": ["api", "reports", "sales", "top-products"],
+              "query": [
+                {"key": "limit", "value": "10"}
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Sales by Branch",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8084/api/reports/sales/by-branch?startDate=2025-01-01&endDate=2025-01-31",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8084",
+              "path": ["api", "reports", "sales", "by-branch"],
+              "query": [
+                {"key": "startDate", "value": "2025-01-01"},
+                {"key": "endDate", "value": "2025-01-31"}
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Inventory Reports",
+      "item": [
+        {
+          "name": "Get Inventory Summary",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8084/api/reports/inventory/summary?branchId=1",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8084",
+              "path": ["api", "reports", "inventory", "summary"],
+              "query": [
+                {"key": "branchId", "value": "1"}
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Low Stock Products",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8084/api/reports/inventory/low-stock?branchId=1",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8084",
+              "path": ["api", "reports", "inventory", "low-stock"],
+              "query": [
+                {"key": "branchId", "value": "1"}
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Expiring Products",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8084/api/reports/inventory/expiring?branchId=1",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8084",
+              "path": ["api", "reports", "inventory", "expiring"],
+              "query": [
+                {"key": "branchId", "value": "1"}
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Inventory Value",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8084/api/reports/inventory/value?branchId=1",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8084",
+              "path": ["api", "reports", "inventory", "value"],
+              "query": [
+                {"key": "branchId", "value": "1"}
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Dashboard",
+      "item": [
+        {
+          "name": "Get Dashboard",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8084/api/reports/dashboard",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8084",
+              "path": ["api", "reports", "dashboard"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Snapshots",
+      "item": [
+        {
+          "name": "Generate Historical Snapshots",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8084/api/snapshots/generate?startDate=2025-01-01&endDate=2025-01-31",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8084",
+              "path": ["api", "snapshots", "generate"],
+              "query": [
+                {"key": "startDate", "value": "2025-01-01"},
+                {"key": "endDate", "value": "2025-01-31"}
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Sales Snapshots",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8084/api/snapshots/sales?startDate=2025-01-01&endDate=2025-01-31&branchId=1",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8084",
+              "path": ["api", "snapshots", "sales"],
+              "query": [
+                {"key": "startDate", "value": "2025-01-01"},
+                {"key": "endDate", "value": "2025-01-31"},
+                {"key": "branchId", "value": "1"}
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Inventory Snapshots",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8084/api/snapshots/inventory?reportDate=2025-01-31&branchId=1",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8084",
+              "path": ["api", "snapshots", "inventory"],
+              "query": [
+                {"key": "reportDate", "value": "2025-01-31"},
+                {"key": "branchId", "value": "1"}
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Health Check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:8084/api/reports/health",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8084",
+          "path": ["api", "reports", "health"]
+        }
+      }
+    }
+  ]
+}

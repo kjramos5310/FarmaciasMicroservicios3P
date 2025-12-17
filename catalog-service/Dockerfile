@@ -1,9 +1,33 @@
-FROM openjdk:17-jdk-slim
-
+# Etapa de construcción
+FROM maven:3.9-eclipse-temurin-17 AS build
 WORKDIR /app
 
-COPY target/catalog-service-0.0.1-SNAPSHOT.jar app.jar
+# Copiar archivos de configuración Maven
+COPY pom.xml .
+COPY mvnw .
+COPY .mvn .mvn
 
+# Descargar dependencias
+RUN mvn dependency:go-offline -B
+
+# Copiar código fuente
+COPY src ./src
+
+# Construir la aplicación
+RUN mvn clean package -DskipTests
+
+# Etapa de ejecución
+FROM eclipse-temurin:17-jre-alpine
+WORKDIR /app
+
+# Instalar wget para healthchecks
+RUN apk add --no-cache wget
+
+# Copiar JAR construido
+COPY --from=build /app/target/*.jar app.jar
+
+# Exponer puerto
 EXPOSE 8081
 
+# Ejecutar aplicación
 ENTRYPOINT ["java", "-jar", "app.jar"]

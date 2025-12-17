@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: reporting-postgres
+    environment:
+      POSTGRES_DB: reporting_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5435:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - reporting-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  reporting-service:
+    build: .
+    container_name: reporting-service
+    ports:
+      - "8084:8084"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/reporting_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      SERVICES_SALES_URL: http://sales-service:8083
+      SERVICES_INVENTORY_URL: http://inventory-service:8082
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - reporting-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+
+networks:
+  reporting-network:
+    driver: bridge
