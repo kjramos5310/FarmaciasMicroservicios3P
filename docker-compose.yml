@@ -102,11 +102,11 @@ services:
   # ============================================================================
 
   # Servicio de Catálogo - Gestión de productos farmacéuticos
-  catalog-service:
+  productos-service:
     build:
-      context: ./catalog-service
+      context: ./productos-service
       dockerfile: Dockerfile
-    container_name: catalog-service
+    container_name: productos-service
     restart: unless-stopped
     ports:
       - "8081:8081"
@@ -135,11 +135,11 @@ services:
       start_period: 90s
 
   # Servicio de Inventario - Control de stock por sucursal
-  inventory-service:
+  almacen-service:
     build:
-      context: ./inventory-service
+      context: ./almacen-service
       dockerfile: Dockerfile
-    container_name: inventory-service
+    container_name: almacen-service
     restart: unless-stopped
     ports:
       - "8082:8082"
@@ -168,11 +168,11 @@ services:
       start_period: 90s
 
   # Servicio de Ventas - Procesamiento de transacciones
-  sales-service:
+  ventas-service:
     build:
-      context: ./sales-service
+      context: ./ventas-service
       dockerfile: Dockerfile
-    container_name: sales-service
+    container_name: ventas-service
     restart: unless-stopped
     ports:
       - "8083:8083"
@@ -189,14 +189,14 @@ services:
       # Configuración del servidor
       SERVER_PORT: 8083
       # URLs de microservicios dependientes
-      CATALOG_SERVICE_URL: http://catalog-service:8081
-      INVENTORY_SERVICE_URL: http://inventory-service:8082
+      CATALOG_SERVICE_URL: http://productos-service:8081
+      INVENTORY_SERVICE_URL: http://almacen-service:8082
     depends_on:
       sales-db:
         condition: service_healthy
-      catalog-service:
+      productos-service:
         condition: service_healthy
-      inventory-service:
+      almacen-service:
         condition: service_healthy
     networks:
       - pharmacy-network
@@ -208,11 +208,11 @@ services:
       start_period: 90s
 
   # Servicio de Reportes - Generación de reportes y estadísticas
-  reporting-service:
+  reportes-service:
     build:
-      context: ./reporting-service
+      context: ./reportes-service
       dockerfile: Dockerfile
-    container_name: reporting-service
+    container_name: reportes-service
     restart: unless-stopped
     ports:
       - "8084:8084"
@@ -229,8 +229,8 @@ services:
       # Configuración del servidor
       SERVER_PORT: 8084
       # URLs de microservicios dependientes
-      SALES_SERVICE_URL: http://sales-service:8083
-      INVENTORY_SERVICE_URL: http://inventory-service:8082
+      SALES_SERVICE_URL: http://ventas-service:8083
+      INVENTORY_SERVICE_URL: http://almacen-service:8082
     depends_on:
       reporting-db:
         condition: service_healthy
