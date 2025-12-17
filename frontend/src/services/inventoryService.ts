@@ -5,14 +5,15 @@ import {
   StockMovement,
   CreateBranchRequest,
   CreateStockMovementRequest,
-} from '../types';
+  CreateStockRequest,
+} from '../types/inventory.types';
 
 export const inventoryService = {
   // Branches
   getAllBranches: async (): Promise<Branch[]> => {
     try {
       const response = await inventoryApi.get('/branches');
-      return response.data;
+      return response.data.data || response.data;
     } catch (error) {
       throw new Error(handleApiError(error));
     }
@@ -21,7 +22,7 @@ export const inventoryService = {
   getBranchById: async (id: number): Promise<Branch> => {
     try {
       const response = await inventoryApi.get(`/branches/${id}`);
-      return response.data;
+      return response.data.data || response.data;
     } catch (error) {
       throw new Error(handleApiError(error));
     }
@@ -30,7 +31,7 @@ export const inventoryService = {
   createBranch: async (branch: CreateBranchRequest): Promise<Branch> => {
     try {
       const response = await inventoryApi.post('/branches', branch);
-      return response.data;
+      return response.data.data || response.data;
     } catch (error) {
       throw new Error(handleApiError(error));
     }
@@ -39,7 +40,7 @@ export const inventoryService = {
   updateBranch: async (id: number, branch: CreateBranchRequest): Promise<Branch> => {
     try {
       const response = await inventoryApi.put(`/branches/${id}`, branch);
-      return response.data;
+      return response.data.data || response.data;
     } catch (error) {
       throw new Error(handleApiError(error));
     }
@@ -56,8 +57,8 @@ export const inventoryService = {
   // Stock
   getStockByBranch: async (branchId: number): Promise<Stock[]> => {
     try {
-      const response = await inventoryApi.get(`/stock/branch/${branchId}`);
-      return response.data;
+      const response = await inventoryApi.get(`/stock/${branchId}`);
+      return response.data.data || response.data;
     } catch (error) {
       throw new Error(handleApiError(error));
     }
@@ -66,7 +67,7 @@ export const inventoryService = {
   getStockByProduct: async (branchId: number, productId: number): Promise<Stock> => {
     try {
       const response = await inventoryApi.get(`/stock/${branchId}/${productId}`);
-      return response.data;
+      return response.data.data || response.data;
     } catch (error) {
       throw new Error(handleApiError(error));
     }
@@ -75,7 +76,7 @@ export const inventoryService = {
   getAllStock: async (): Promise<Stock[]> => {
     try {
       const response = await inventoryApi.get('/stock');
-      return response.data;
+      return response.data.data || response.data;
     } catch (error) {
       throw new Error(handleApiError(error));
     }
@@ -84,26 +85,17 @@ export const inventoryService = {
   getLowStock: async (): Promise<Stock[]> => {
     try {
       const response = await inventoryApi.get('/stock/low-stock');
-      return response.data;
+      return response.data.data || response.data;
     } catch (error) {
       throw new Error(handleApiError(error));
     }
   },
 
   // Stock Movements
-  getAllMovements: async (): Promise<StockMovement[]> => {
-    try {
-      const response = await inventoryApi.get('/movements');
-      return response.data;
-    } catch (error) {
-      throw new Error(handleApiError(error));
-    }
-  },
-
   getMovementsByBranch: async (branchId: number): Promise<StockMovement[]> => {
     try {
       const response = await inventoryApi.get(`/movements/branch/${branchId}`);
-      return response.data;
+      return response.data.data || response.data;
     } catch (error) {
       throw new Error(handleApiError(error));
     }
@@ -112,7 +104,7 @@ export const inventoryService = {
   getMovementsByProduct: async (productId: number): Promise<StockMovement[]> => {
     try {
       const response = await inventoryApi.get(`/movements/product/${productId}`);
-      return response.data;
+      return response.data.data || response.data;
     } catch (error) {
       throw new Error(handleApiError(error));
     }
@@ -120,9 +112,24 @@ export const inventoryService = {
 
   createMovement: async (movement: CreateStockMovementRequest): Promise<StockMovement> => {
     try {
+      console.log('Creating movement:', movement);
       const response = await inventoryApi.post('/movements', movement);
-      return response.data;
-    } catch (error) {
+      console.log('Movement response:', response.data);
+      return response.data.data || response.data;
+    } catch (error: any) {
+      console.error('Movement creation error:', error.response?.data || error.message);
+      throw new Error(handleApiError(error));
+    }
+  },
+
+  createStock: async (stock: CreateStockRequest): Promise<Stock> => {
+    try {
+      console.log('Creating stock:', stock);
+      const response = await inventoryApi.post('/stock', stock);
+      console.log('Stock response:', response.data);
+      return response.data.data || response.data;
+    } catch (error: any) {
+      console.error('Stock creation error:', error.response?.data || error.message);
       throw new Error(handleApiError(error));
     }
   },

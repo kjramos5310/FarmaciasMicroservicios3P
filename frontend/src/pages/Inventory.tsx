@@ -17,12 +17,20 @@ const branchSchema = yup.object().shape({
 });
 
 const movementSchema = yup.object().shape({
+  branchId: yup.number().required('Sucursal es requerida').positive(),
   productId: yup.number().required('Producto es requerido').positive(),
   movementType: yup.string().required('Tipo es requerido'),
   quantity: yup.number().required('Cantidad es requerida').positive(),
-  sourceBranchId: yup.number(),
-  destinationBranchId: yup.number(),
-  reason: yup.string(),
+  destinationBranchId: yup.number().optional(),
+  reason: yup.string().optional(),
+});
+
+const stockSchema = yup.object().shape({
+  branchId: yup.number().required('Sucursal es requerida').positive(),
+  productId: yup.number().required('Producto es requerido').positive(),
+  quantity: yup.number().required('Cantidad es requerida').min(0),
+  minimumStock: yup.number().required('Stock mínimo es requerido').min(0),
+  maximumStock: yup.number().required('Stock máximo es requerido').positive(),
 });
 
 const Inventory: React.FC = () => {
@@ -35,6 +43,7 @@ const Inventory: React.FC = () => {
   const [selectedBranch, setSelectedBranch] = useState<number | ''>('');
   const [isBranchModalOpen, setIsBranchModalOpen] = useState(false);
   const [isMovementModalOpen, setIsMovementModalOpen] = useState(false);
+  const [isStockModalOpen, setIsStockModalOpen] = useState(false);
   const [editingBranch, setEditingBranch] = useState<Branch | null>(null);
 
   const {
@@ -56,6 +65,15 @@ const Inventory: React.FC = () => {
     resolver: yupResolver(movementSchema),
   });
 
+  const {
+    register: registerStock,
+    handleSubmit: handleSubmitStock,
+    reset: resetStock,
+    formState: { errors: stockErrors, isSubmitting: stockSubmitting },
+  } = useForm({
+    resolver: yupResolver(stockSchema),
+  });
+
   const movementType = watchMovement('movementType');
 
   useEffect(() => {
@@ -68,22 +86,41 @@ const Inventory: React.FC = () => {
     }
   }, [selectedBranch, activeTab]);
 
+  useEffect(() => {
+    if (selectedBranch && activeTab === 'movements') {
+      loadMovementsByBranch(Number(selectedBranch));
+    }
+  }, [selectedBranch, activeTab]);
+
   const loadInitialData = async () => {
     try {
       setLoading(true);
-      const [branchesData, productsData, movementsData] = await Promise.all([
+      const [branchesData, productsData] = await Promise.all([
         inventoryService.getAllBranches(),
         catalogService.getAllProducts(),
-        inventoryService.getAllMovements(),
       ]);
-      setBranches(branchesData);
-      setProducts(productsData);
-      setMovements(movementsData);
+      setBranches(Array.isArray(branchesData) ? branchesData : []);
+      setProducts(Array.isArray(productsData) ? productsData : []);
+      setMovements([]); // Start with empty movements
     } catch (error) {
       toast.error('Error al cargar datos');
       console.error(error);
+      setBranches([]);
+      setProducts([]);
+      setMovements([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadMovementsByBranch = async (branchId: number) => {
+    try {
+      const movementsData = await inventoryService.getMovementsByBranch(branchId);
+      setMovements(Array.isArray(movementsData) ? movementsData : []);
+    } catch (error) {
+      toast.error('Error al cargar movimientos');
+      console.error(error);
+      setMovements([]);
     }
   };
 
@@ -99,11 +136,26 @@ const Inventory: React.FC = () => {
 
   const onSubmitBranch = async (data: any) => {
     try {
+      const branchData = {
+        code: data.code,
+        name: data.name,
+        address: data.address,
+        city: data.city,
+        province: data.province || 'Pichincha',
+        phone: data.phone,
+        email: data.email || `${data.code.toLowerCase()}@farmacia.com`,
+        managerName: data.managerName || 'Administrador',
+        status: data.status || 'ACTIVE',
+        openingTime: data.openingTime || '08:00:00',
+        closingTime: data.closingTime || '20:00:00',
+        schedule: data.schedule,
+      };
+      
       if (editingBranch) {
-        await inventoryService.updateBranch(editingBranch.id!, data);
+        await inventoryService.updateBranch(editingBranch.id!, branchData);
         toast.success('Sucursal actualizada');
       } else {
-        await inventoryService.createBranch(data);
+        await inventoryService.createBranch(branchData);
         toast.success('Sucursal creada');
       }
       setIsBranchModalOpen(false);
@@ -117,16 +169,62 @@ const Inventory: React.FC = () => {
 
   const onSubmitMovement = async (data: any) => {
     try {
-      await inventoryService.createMovement(data);
+      const movementData = {
+        branchId: data.branchId || Number(selectedBranch),
+        productId: Number(data.productId),
+        type: data.movementType,
+        quantity: Number(data.quantity),
+        reason: data.reason || '',
+        reference: data.reference || 'WEB-FORM',
+        performedBy: data.performedBy || 'usuario',
+        destinationBranchId: data.destinationBranchId ? Number(data.destinationBranchId) : undefined,
+      };
+      
+      console.log('Sending movement data:', movementData);
+      await inventoryService.createMovement(movementData);
       toast.success('Movimiento registrado');
       setIsMovementModalOpen(false);
       resetMovement();
       loadInitialData();
       if (selectedBranch) {
         loadStockByBranch(Number(selectedBranch));
+        loadMovementsByBranch(Number(selectedBranch));
       }
-    } catch (error) {
-      toast.error('Error al registrar movimiento');
+    } catch (error: any) {
+      let errorMessage = error.message || 'Error al registrar movimiento';
+      
+      // Mejorar mensajes de error del backend
+      if (errorMessage.includes('Stock no encontrado')) {
+        errorMessage = 'El backend requiere que exista un registro de stock previo. Contacte al administrador del sistema para inicializar el stock de este producto en esta sucursal.';
+      }
+      
+      toast.error(errorMessage);
+      console.error('Movement submission error:', error);
+    }
+  };
+
+  const onSubmitStock = async (data: any) => {
+    try {
+      const stockData = {
+        branchId: data.branchId || Number(selectedBranch),
+        productId: Number(data.productId),
+        quantity: Number(data.quantity),
+        minimumStock: Number(data.minimumStock),
+        maximumStock: Number(data.maximumStock),
+      };
+      
+      console.log('Creating stock:', stockData);
+      await inventoryService.createStock(stockData);
+      toast.success('Stock creado exitosamente');
+      setIsStockModalOpen(false);
+      resetStock();
+      if (selectedBranch) {
+        loadStockByBranch(Number(selectedBranch));
+      }
+    } catch (error: any) {
+      const errorMessage = error.message || 'Error al crear stock';
+      toast.error(errorMessage);
+      console.error('Stock creation error:', error);
     }
   };
 
@@ -274,6 +372,12 @@ const Inventory: React.FC = () => {
         <div className="space-y-4">
           <div className="flex justify-between items-center">
             <h3 className="text-xl font-semibold">Stock por Sucursal</h3>
+            <button
+              onClick={() => setIsStockModalOpen(true)}
+              className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
+            >
+              + Crear Stock Inicial
+            </button>
           </div>
 
           <div className="bg-white p-4 rounded-lg shadow-md">
@@ -363,53 +467,82 @@ const Inventory: React.FC = () => {
             </button>
           </div>
 
-          <div className="bg-white rounded-lg shadow-md overflow-hidden">
-            <table className="w-full">
-              <thead className="bg-gray-50 border-b">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
-                    Fecha
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
-                    Producto
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
-                    Tipo
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
-                    Cantidad
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
-                    Razón
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {movements.slice(0, 50).map((movement) => {
-                  const product = products.find((p) => p.id === movement.productId);
-                  return (
-                    <tr key={movement.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 text-sm">
-                        {movement.createdAt
-                          ? new Date(movement.createdAt).toLocaleDateString()
-                          : '-'}
-                      </td>
-                      <td className="px-6 py-4 text-sm">{product?.name || '-'}</td>
-                      <td className="px-6 py-4 text-sm">
-                        <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs">
-                          {movement.movementType}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-sm font-semibold">{movement.quantity}</td>
-                      <td className="px-6 py-4 text-sm text-gray-600">
-                        {movement.reason || '-'}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+          {/* Branch Selector for Movements */}
+          <div className="bg-white p-4 rounded-lg shadow-md">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Seleccione una sucursal para ver sus movimientos:
+            </label>
+            <select
+              value={selectedBranch}
+              onChange={(e) => setSelectedBranch(e.target.value === '' ? '' : Number(e.target.value))}
+              className="w-full md:w-1/2 border border-gray-300 rounded-lg px-3 py-2"
+            >
+              <option value="">Seleccione una sucursal...</option>
+              {branches.map((branch) => (
+                <option key={branch.id} value={branch.id}>
+                  {branch.name}
+                </option>
+              ))}
+            </select>
           </div>
+
+          {!selectedBranch ? (
+            <div className="bg-white rounded-lg shadow-md p-8 text-center text-gray-500">
+              Seleccione una sucursal para ver sus movimientos de inventario
+            </div>
+          ) : movements.length === 0 ? (
+            <div className="bg-white rounded-lg shadow-md p-8 text-center text-gray-500">
+              No hay movimientos registrados para esta sucursal
+            </div>
+          ) : (
+            <div className="bg-white rounded-lg shadow-md overflow-hidden">
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
+                      Fecha
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
+                      Producto
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
+                      Tipo
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
+                      Cantidad
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
+                      Razón
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {movements.slice(0, 50).map((movement) => {
+                    const product = products.find((p) => p.id === movement.productId);
+                    return (
+                      <tr key={movement.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 text-sm">
+                          {movement.createdAt
+                            ? new Date(movement.createdAt).toLocaleDateString()
+                            : '-'}
+                        </td>
+                        <td className="px-6 py-4 text-sm">{product?.name || '-'}</td>
+                        <td className="px-6 py-4 text-sm">
+                          <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs">
+                            {movement.movementType}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-sm font-semibold">{movement.quantity}</td>
+                        <td className="px-6 py-4 text-sm text-gray-600">
+                          {movement.reason || '-'}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
@@ -523,6 +656,30 @@ const Inventory: React.FC = () => {
         title="Registrar Movimiento"
       >
         <form onSubmit={handleSubmitMovement(onSubmitMovement)} className="space-y-4">
+          <div className="bg-blue-50 border border-blue-300 rounded-lg p-3 mb-4">
+            <p className="text-sm text-blue-800">
+              <strong>ℹ️ Importante:</strong> Si el producto no tiene stock en la sucursal, primero cree el stock inicial usando el botón "Crear Stock Inicial" en la pestaña Stock.
+            </p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Sucursal *</label>
+            <select
+              {...registerMovement('branchId')}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2"
+              defaultValue={selectedBranch || ''}
+            >
+              <option value="">Seleccione...</option>
+              {branches.map((branch) => (
+                <option key={branch.id} value={branch.id}>
+                  {branch.name}
+                </option>
+              ))}
+            </select>
+            {movementErrors.branchId && (
+              <p className="text-red-500 text-xs mt-1">{movementErrors.branchId.message}</p>
+            )}
+          </div>
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Tipo *</label>
             <select
@@ -572,40 +729,22 @@ const Inventory: React.FC = () => {
           </div>
 
           {movementType === 'TRANSFERENCIA' && (
-            <>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Sucursal Origen
-                </label>
-                <select
-                  {...registerMovement('sourceBranchId')}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
-                >
-                  <option value="">Seleccione...</option>
-                  {branches.map((branch) => (
-                    <option key={branch.id} value={branch.id}>
-                      {branch.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Sucursal Destino
-                </label>
-                <select
-                  {...registerMovement('destinationBranchId')}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
-                >
-                  <option value="">Seleccione...</option>
-                  {branches.map((branch) => (
-                    <option key={branch.id} value={branch.id}>
-                      {branch.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Sucursal Destino
+              </label>
+              <select
+                {...registerMovement('destinationBranchId')}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2"
+              >
+                <option value="">Seleccione...</option>
+                {branches.map((branch) => (
+                  <option key={branch.id} value={branch.id}>
+                    {branch.name}
+                  </option>
+                ))}
+              </select>
+            </div>
           )}
 
           <div>
@@ -634,6 +773,120 @@ const Inventory: React.FC = () => {
               className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
             >
               {movementSubmitting ? 'Guardando...' : 'Guardar'}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Stock Creation Modal */}
+      <Modal
+        isOpen={isStockModalOpen}
+        onClose={() => {
+          setIsStockModalOpen(false);
+          resetStock();
+        }}
+        title="Crear Stock Inicial"
+      >
+        <form onSubmit={handleSubmitStock(onSubmitStock)} className="space-y-4">
+          <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4">
+            <p className="text-sm text-green-800">
+              <strong>✓ Solución:</strong> Use este formulario para crear el registro de stock inicial antes de hacer movimientos.
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Sucursal *</label>
+            <select
+              {...registerStock('branchId')}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2"
+              defaultValue={selectedBranch || ''}
+            >
+              <option value="">Seleccione...</option>
+              {branches.map((branch) => (
+                <option key={branch.id} value={branch.id}>
+                  {branch.name}
+                </option>
+              ))}
+            </select>
+            {stockErrors.branchId && (
+              <p className="text-red-500 text-xs mt-1">{stockErrors.branchId.message}</p>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Producto *</label>
+            <select
+              {...registerStock('productId')}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2"
+            >
+              <option value="">Seleccione...</option>
+              {products.map((product) => (
+                <option key={product.id} value={product.id}>
+                  {product.name}
+                </option>
+              ))}
+            </select>
+            {stockErrors.productId && (
+              <p className="text-red-500 text-xs mt-1">{stockErrors.productId.message}</p>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Cantidad Inicial *</label>
+            <input
+              type="number"
+              {...registerStock('quantity')}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2"
+              placeholder="0"
+            />
+            {stockErrors.quantity && (
+              <p className="text-red-500 text-xs mt-1">{stockErrors.quantity.message}</p>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Stock Mínimo *</label>
+            <input
+              type="number"
+              {...registerStock('minimumStock')}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2"
+              placeholder="20"
+            />
+            {stockErrors.minimumStock && (
+              <p className="text-red-500 text-xs mt-1">{stockErrors.minimumStock.message}</p>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Stock Máximo *</label>
+            <input
+              type="number"
+              {...registerStock('maximumStock')}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2"
+              placeholder="500"
+            />
+            {stockErrors.maximumStock && (
+              <p className="text-red-500 text-xs mt-1">{stockErrors.maximumStock.message}</p>
+            )}
+          </div>
+
+          <div className="flex justify-end space-x-3 pt-4">
+            <button
+              type="button"
+              onClick={() => {
+                setIsStockModalOpen(false);
+                resetStock();
+              }}
+              className="px-4 py-2 border border-gray-300 rounded-lg"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={stockSubmitting}
+              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+            >
+              {stockSubmitting ? 'Creando...' : 'Crear Stock'}
             </button>
           </div>
         </form>

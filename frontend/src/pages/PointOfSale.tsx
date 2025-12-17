@@ -75,7 +75,7 @@ const PointOfSale: React.FC = () => {
         salesService.getAllCustomers(),
       ]);
       setProducts(productsData.filter((p) => p.status === 'ACTIVE'));
-      setBranches(branchesData.filter((b) => b.active));
+      setBranches(branchesData.filter((b) => b.status === 'ACTIVE' || b.active));
       setCustomers(customersData.filter((c) => c.active));
     } catch (error) {
       toast.error('Error al cargar datos');

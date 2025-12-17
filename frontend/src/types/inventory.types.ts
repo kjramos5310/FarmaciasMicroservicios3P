@@ -5,9 +5,15 @@ export interface Branch {
   name: string;
   address: string;
   city: string;
+  province?: string;
   phone: string;
+  email?: string;
+  managerName?: string;
+  status?: string;
+  openingTime?: string;
+  closingTime?: string;
   schedule?: string;
-  active: boolean;
+  active?: boolean;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -40,11 +46,11 @@ export interface StockMovement {
 }
 
 export enum MovementType {
-  ENTRADA = 'ENTRADA',
-  SALIDA = 'SALIDA',
-  AJUSTE = 'AJUSTE',
-  TRANSFERENCIA = 'TRANSFERENCIA',
-  DEVOLUCION = 'DEVOLUCION'
+  ENTRY = 'ENTRY',
+  EXIT = 'EXIT',
+  ADJUSTMENT = 'ADJUSTMENT',
+  TRANSFER = 'TRANSFER',
+  RETURN = 'RETURN'
 }
 
 export interface CreateBranchRequest {
@@ -52,15 +58,31 @@ export interface CreateBranchRequest {
   name: string;
   address: string;
   city: string;
+  province?: string;
   phone: string;
+  email?: string;
+  managerName?: string;
+  status?: string;
+  openingTime?: string;
+  closingTime?: string;
   schedule?: string;
 }
 
 export interface CreateStockMovementRequest {
+  branchId: number;
   productId: number;
-  movementType: MovementType;
+  type: string;
   quantity: number;
-  sourceBranchId?: number;
-  destinationBranchId?: number;
   reason?: string;
+  reference?: string;
+  performedBy?: string;
+  destinationBranchId?: number;
+}
+
+export interface CreateStockRequest {
+  branchId: number;
+  productId: number;
+  quantity: number;
+  minimumStock: number;
+  maximumStock: number;
 }
