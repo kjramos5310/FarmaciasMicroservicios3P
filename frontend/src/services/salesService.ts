@@ -4,6 +4,8 @@ import {
   Sale,
   CreateCustomerRequest,
   CreateSaleRequest,
+  Prescription,
+  CreatePrescriptionRequest,
 } from '../types';
 
 export const salesService = {
@@ -144,6 +146,60 @@ export const salesService = {
       return response.data.data || response.data;
     } catch (error) {
       throw new Error(handleApiError(error));
+    }
+  },
+
+  // Prescriptions
+  getAllPrescriptions: async (): Promise<Prescription[]> => {
+    try {
+      const response = await salesApi.get('/prescriptions');
+      let data = response.data.data || response.data;
+      
+      // Manejar respuesta paginada
+      if (data && data.content && Array.isArray(data.content)) {
+        data = data.content;
+      }
+      
+      return Array.isArray(data) ? data : [];
+    } catch (error) {
+      throw new Error(handleApiError(error));
+    }
+  },
+
+  getPrescriptionById: async (id: number): Promise<Prescription> => {
+    try {
+      const response = await salesApi.get(`/prescriptions/${id}`);
+      return response.data.data || response.data;
+    } catch (error) {
+      throw new Error(handleApiError(error));
+    }
+  },
+
+  getPrescriptionsByCustomer: async (customerId: number): Promise<Prescription[]> => {
+    try {
+      const response = await salesApi.get(`/prescriptions/customer/${customerId}`);
+      let data = response.data.data || response.data;
+      
+      // Manejar respuesta paginada
+      if (data && data.content && Array.isArray(data.content)) {
+        data = data.content;
+      }
+      
+      return Array.isArray(data) ? data : [];
+    } catch (error) {
+      throw new Error(handleApiError(error));
+    }
+  },
+
+  createPrescription: async (prescription: CreatePrescriptionRequest): Promise<Prescription> => {
+    try {
+      console.log('Creating prescription with data:', prescription);
+      const response = await salesApi.post('/prescriptions', prescription);
+      console.log('Prescription created response:', response.data);
+      return response.data.data || response.data;
+    } catch (error: any) {
+      console.error('Prescription creation failed:', error.response?.data || error.message);
+      throw error;
     }
   },
 };

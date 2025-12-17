@@ -13,6 +13,9 @@ import {
   CreateSaleItemRequest,
   CreateCustomerRequest,
   PaymentMethod,
+  Prescription,
+  CreatePrescriptionRequest,
+  PrescriptionStatus,
 } from '../types';
 import { toast } from 'react-toastify';
 
@@ -36,10 +39,31 @@ const customerSchema = yup.object().shape({
   birthDate: yup.string().optional(),
 });
 
+interface PrescriptionFormData {
+  doctorName: string;
+  doctorLicense: string;
+  doctorSpecialty: string;
+  issueDate: string;
+  expirationDate: string;
+  diagnosis: string;
+  notes?: string;
+}
+
+const prescriptionSchema = yup.object().shape({
+  doctorName: yup.string().required('Nombre del médico es requerido'),
+  doctorLicense: yup.string().required('Licencia del médico es requerida'),
+  doctorSpecialty: yup.string().required('Especialidad es requerida'),
+  issueDate: yup.string().required('Fecha de emisión es requerida'),
+  expirationDate: yup.string().required('Fecha de expiración es requerida'),
+  diagnosis: yup.string().required('Diagnóstico es requerido'),
+  notes: yup.string().optional(),
+});
+
 interface CartItem {
   product: Product;
   quantity: number;
   prescriptionFile?: string;
+  prescriptionId?: number;
 }
 
 const PointOfSale: React.FC = () => {
@@ -48,6 +72,7 @@ const PointOfSale: React.FC = () => {
   const [branches, setBranches] = useState<Branch[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [sales, setSales] = useState<Sale[]>([]);
+  const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [selectedBranch, setSelectedBranch] = useState<number | ''>('');
@@ -56,6 +81,8 @@ const PointOfSale: React.FC = () => {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(PaymentMethod.CASH);
   const [loading, setLoading] = useState(true);
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
+  const [isPrescriptionModalOpen, setIsPrescriptionModalOpen] = useState(false);
+  const [selectedProductForPrescription, setSelectedProductForPrescription] = useState<number | null>(null);
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
   const [saleNumber, setSaleNumber] = useState('');
   const [lastSaleDetails, setLastSaleDetails] = useState<{
@@ -75,9 +102,27 @@ const PointOfSale: React.FC = () => {
     resolver: yupResolver(customerSchema) as any,
   });
 
+  const {
+    register: registerPrescription,
+    handleSubmit: handleSubmitPrescription,
+    reset: resetPrescription,
+    formState: { errors: errorsPrescription, isSubmitting: isSubmittingPrescription },
+  } = useForm<PrescriptionFormData>({
+    resolver: yupResolver(prescriptionSchema) as any,
+  });
+
   useEffect(() => {
     loadInitialData();
   }, []);
+
+  useEffect(() => {
+    // Cargar prescripciones cuando se seleccione un cliente
+    if (selectedCustomer?.id) {
+      loadCustomerPrescriptions(selectedCustomer.id);
+    } else {
+      setPrescriptions([]);
+    }
+  }, [selectedCustomer]);
 
   const loadInitialData = async () => {
     try {
@@ -102,9 +147,28 @@ const PointOfSale: React.FC = () => {
     }
   };
 
+  const loadCustomerPrescriptions = async (customerId: number) => {
+    try {
+      const prescriptionsData = await salesService.getPrescriptionsByCustomer(customerId);
+      // Filtrar solo prescripciones activas y no expiradas
+      const activePrescriptions = prescriptionsData.filter(
+        (p) => p.status === PrescriptionStatus.ACTIVE && new Date(p.expirationDate) > new Date()
+      );
+      setPrescriptions(activePrescriptions);
+    } catch (error) {
+      console.error('Error loading prescriptions:', error);
+      setPrescriptions([]);
+    }
+  };
+
   const addToCart = async (product: Product) => {
     if (!selectedBranch) {
       toast.error('Seleccione una sucursal primero');
+      return;
+    }
+
+    if (!selectedCustomer) {
+      toast.error('Seleccione un cliente primero');
       return;
     }
 
@@ -128,12 +192,26 @@ const PointOfSale: React.FC = () => {
           )
         );
       } else {
-        setCart([...cart, { product, quantity: 1 }]);
+        // Si el producto requiere receta, abrir modal de prescripción
+        if (product.requiresPrescription) {
+          setSelectedProductForPrescription(product.id!);
+          setIsPrescriptionModalOpen(true);
+        } else {
+          setCart([...cart, { product, quantity: 1 }]);
+          toast.success('Producto agregado');
+        }
       }
-      toast.success('Producto agregado');
     } catch (error) {
       toast.error('Error al verificar stock');
     }
+  };
+
+  const addToCartWithPrescription = (productId: number, prescriptionId?: number) => {
+    const product = products.find(p => p.id === productId);
+    if (!product) return;
+
+    setCart([...cart, { product, quantity: 1, prescriptionId }]);
+    toast.success('Producto agregado con receta');
   };
 
   const updateQuantity = (productId: number, newQuantity: number) => {
@@ -213,6 +291,47 @@ const PointOfSale: React.FC = () => {
     }
   };
 
+  const onSubmitPrescription = async (data: PrescriptionFormData) => {
+    if (!selectedCustomer) {
+      toast.error('Debe seleccionar un cliente primero');
+      return;
+    }
+
+    try {
+      const prescriptionData: CreatePrescriptionRequest = {
+        customerId: selectedCustomer.id!,
+        doctorName: data.doctorName,
+        doctorLicense: data.doctorLicense,
+        doctorSpecialty: data.doctorSpecialty,
+        issueDate: data.issueDate,
+        expirationDate: data.expirationDate,
+        diagnosis: data.diagnosis,
+        notes: data.notes,
+        status: PrescriptionStatus.ACTIVE,
+      };
+
+      const newPrescription = await salesService.createPrescription(prescriptionData);
+      setPrescriptions([...prescriptions, newPrescription]);
+      
+      // Agregar producto al carrito con la prescripción
+      if (selectedProductForPrescription) {
+        addToCartWithPrescription(selectedProductForPrescription, newPrescription.id);
+      }
+      
+      toast.success('Prescripción creada exitosamente');
+      setIsPrescriptionModalOpen(false);
+      resetPrescription();
+      setSelectedProductForPrescription(null);
+    } catch (error: any) {
+      let errorMsg = 'Error al crear prescripción';
+      if (error.response?.data?.message) {
+        errorMsg = error.response.data.message;
+      }
+      toast.error(errorMsg);
+      console.error('Prescription creation error:', error);
+    }
+  };
+
   const processSale = async () => {
     if (!selectedCustomer) {
       toast.error('Seleccione un cliente');
@@ -227,12 +346,12 @@ const PointOfSale: React.FC = () => {
       return;
     }
 
-    // Validar recetas
-    const requiresPrescription = cart.some(
-      (item) => item.product.requiresPrescription && !item.prescriptionFile
+    // Validar que productos con receta tengan prescriptionId
+    const missingPrescriptions = cart.filter(
+      (item) => item.product.requiresPrescription && !item.prescriptionId
     );
-    if (requiresPrescription) {
-      toast.error('Algunos productos requieren receta médica');
+    if (missingPrescriptions.length > 0) {
+      toast.error(`Faltan recetas para: ${missingPrescriptions.map(i => i.product.name).join(', ')}`);
       return;
     }
 
@@ -245,7 +364,7 @@ const PointOfSale: React.FC = () => {
         quantity: item.quantity,
         unitPrice: item.product.basePrice ?? 0,
         subtotal: (item.product.basePrice ?? 0) * item.quantity,
-        prescriptionFile: item.prescriptionFile,
+        prescriptionId: item.prescriptionId,
       }));
 
       // Crear venta
@@ -450,6 +569,19 @@ const PointOfSale: React.FC = () => {
                     <div className="flex-1">
                       <p className="font-medium text-sm">{item.product.name}</p>
                       <p className="text-xs text-gray-600">${(item.product.basePrice ?? 0).toFixed(2)}</p>
+                      {item.product.requiresPrescription && (
+                        <div className="mt-1">
+                          {item.prescriptionId ? (
+                            <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
+                              ✓ Con receta
+                            </span>
+                          ) : (
+                            <span className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded">
+                              ⚠ Falta receta
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
                     <button
                       onClick={() => removeFromCart(item.product.id!)}
@@ -749,6 +881,173 @@ const PointOfSale: React.FC = () => {
             </button>
           </div>
         </form>
+      </Modal>
+
+      {/* Prescription Modal */}
+      <Modal
+        isOpen={isPrescriptionModalOpen}
+        onClose={() => {
+          setIsPrescriptionModalOpen(false);
+          resetPrescription();
+          setSelectedProductForPrescription(null);
+        }}
+        title="Prescripción Médica Requerida"
+        maxWidth="lg"
+      >
+        <div className="space-y-4">
+          {/* Selector de prescripción existente */}
+          {prescriptions.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Seleccionar prescripción existente
+              </label>
+              <select
+                onChange={(e) => {
+                  const prescriptionId = Number(e.target.value);
+                  if (prescriptionId && selectedProductForPrescription) {
+                    addToCartWithPrescription(selectedProductForPrescription, prescriptionId);
+                    setIsPrescriptionModalOpen(false);
+                    setSelectedProductForPrescription(null);
+                  }
+                }}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 mb-4"
+              >
+                <option value="">Seleccione una prescripción...</option>
+                {prescriptions.map((prescription) => (
+                  <option key={prescription.id} value={prescription.id}>
+                    {prescription.prescriptionNumber} - Dr. {prescription.doctorName} - {prescription.diagnosis}
+                  </option>
+                ))}
+              </select>
+              <div className="text-center text-gray-500 mb-4">- O -</div>
+            </div>
+          )}
+
+          {/* Formulario de nueva prescripción */}
+          <h4 className="font-semibold text-gray-700">Crear nueva prescripción</h4>
+          <form onSubmit={handleSubmitPrescription(onSubmitPrescription)} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Nombre del Médico *
+                </label>
+                <input
+                  {...registerPrescription('doctorName')}
+                  placeholder="Dr. Juan Pérez"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                />
+                {errorsPrescription.doctorName && (
+                  <p className="text-red-500 text-xs mt-1">{errorsPrescription.doctorName.message}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Licencia Médica *
+                </label>
+                <input
+                  {...registerPrescription('doctorLicense')}
+                  placeholder="MSP-12345"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                />
+                {errorsPrescription.doctorLicense && (
+                  <p className="text-red-500 text-xs mt-1">{errorsPrescription.doctorLicense.message}</p>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Especialidad *
+              </label>
+              <input
+                {...registerPrescription('doctorSpecialty')}
+                placeholder="Medicina General"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2"
+              />
+              {errorsPrescription.doctorSpecialty && (
+                <p className="text-red-500 text-xs mt-1">{errorsPrescription.doctorSpecialty.message}</p>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Fecha de Emisión *
+                </label>
+                <input
+                  type="date"
+                  {...registerPrescription('issueDate')}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                />
+                {errorsPrescription.issueDate && (
+                  <p className="text-red-500 text-xs mt-1">{errorsPrescription.issueDate.message}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Fecha de Expiración *
+                </label>
+                <input
+                  type="date"
+                  {...registerPrescription('expirationDate')}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                />
+                {errorsPrescription.expirationDate && (
+                  <p className="text-red-500 text-xs mt-1">{errorsPrescription.expirationDate.message}</p>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Diagnóstico *
+              </label>
+              <input
+                {...registerPrescription('diagnosis')}
+                placeholder="Infección respiratoria"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2"
+              />
+              {errorsPrescription.diagnosis && (
+                <p className="text-red-500 text-xs mt-1">{errorsPrescription.diagnosis.message}</p>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Notas
+              </label>
+              <textarea
+                {...registerPrescription('notes')}
+                rows={3}
+                placeholder="Instrucciones adicionales..."
+                className="w-full border border-gray-300 rounded-lg px-3 py-2"
+              />
+            </div>
+
+            <div className="flex justify-end space-x-3 pt-4">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsPrescriptionModalOpen(false);
+                  resetPrescription();
+                  setSelectedProductForPrescription(null);
+                }}
+                className="px-4 py-2 border border-gray-300 rounded-lg"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={isSubmittingPrescription}
+                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
+              >
+                {isSubmittingPrescription ? 'Guardando...' : 'Guardar y Agregar al Carrito'}
+              </button>
+            </div>
+          </form>
+        </div>
       </Modal>
 
       {/* Success Modal */}

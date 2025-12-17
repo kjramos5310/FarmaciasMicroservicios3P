@@ -43,6 +43,8 @@ export interface SaleItem {
   unitPrice: number;
   subtotal: number;
   prescriptionFile?: string;
+  prescriptionId?: number;
+  prescription?: Prescription;
 }
 
 export enum PaymentMethod {
@@ -89,4 +91,41 @@ export interface CreateSaleItemRequest {
   unitPrice: number;
   subtotal: number;
   prescriptionFile?: string;
+  prescriptionId?: number;
+}
+
+export enum PrescriptionStatus {
+  ACTIVE = 'ACTIVE',
+  EXPIRED = 'EXPIRED',
+  USED = 'USED',
+  CANCELLED = 'CANCELLED'
+}
+
+export interface Prescription {
+  id?: number;
+  prescriptionNumber?: string;
+  customerId: number;
+  customer?: Customer;
+  doctorName: string;
+  doctorLicense: string;
+  doctorSpecialty: string;
+  issueDate: string;
+  expirationDate: string;
+  scannedDocument?: string;
+  diagnosis: string;
+  notes?: string;
+  status: PrescriptionStatus;
+  createdAt?: string;
+}
+
+export interface CreatePrescriptionRequest {
+  customerId: number;
+  doctorName: string;
+  doctorLicense: string;
+  doctorSpecialty: string;
+  issueDate: string;
+  expirationDate: string;
+  diagnosis: string;
+  notes?: string;
+  status?: PrescriptionStatus;
 }
