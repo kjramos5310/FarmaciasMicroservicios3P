@@ -128,11 +128,11 @@ services:
     networks:
       - pharmacy-network
     healthcheck:
-      test: ["CMD-SHELL", "timeout 1 sh -c 'echo > /dev/tcp/localhost/8081' || exit 1"]
+      test: ["CMD-SHELL", "nc -z localhost 8081 || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 60s
+      start_period: 90s
 
   # Servicio de Inventario - Control de stock por sucursal
   inventory-service:
@@ -161,11 +161,11 @@ services:
     networks:
       - pharmacy-network
     healthcheck:
-      test: ["CMD-SHELL", "timeout 1 sh -c 'echo > /dev/tcp/localhost/8082' || exit 1"]
+      test: ["CMD-SHELL", "nc -z localhost 8082 || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 60s
+      start_period: 90s
 
   # Servicio de Ventas - Procesamiento de transacciones
   sales-service:
@@ -201,11 +201,11 @@ services:
     networks:
       - pharmacy-network
     healthcheck:
-      test: ["CMD-SHELL", "timeout 1 sh -c 'echo > /dev/tcp/localhost/8083' || exit 1"]
+      test: ["CMD-SHELL", "nc -z localhost 8083 || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 60s
+      start_period: 90s
 
   # Servicio de Reportes - Generación de reportes y estadísticas
   reporting-service:
@@ -237,11 +237,11 @@ services:
     networks:
       - pharmacy-network
     healthcheck:
-      test: ["CMD-SHELL", "timeout 1 sh -c 'echo > /dev/tcp/localhost/8084' || exit 1"]
+      test: ["CMD-SHELL", "nc -z localhost 8084 || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 60s
+      start_period: 90s
 
 # ==============================================================================
 # REDES
