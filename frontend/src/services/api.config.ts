@@ -1,4 +1,5 @@
 import axios, { AxiosError } from 'axios';
+import { authService } from './authService';
 
 // Use proxy paths in development to avoid CORS issues
 // The setupProxy.js file will route these to the correct backend services
@@ -36,6 +37,25 @@ export const reportingApi = axios.create({
     'Content-Type': 'application/json',
   },
 });
+
+// Add token to all API requests
+const addTokenInterceptor = (api: any) => {
+  api.interceptors.request.use(
+    (config: any) => {
+      const token = authService.getToken();
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+      return config;
+    },
+    (error: any) => Promise.reject(error)
+  );
+};
+
+addTokenInterceptor(catalogApi);
+addTokenInterceptor(inventoryApi);
+addTokenInterceptor(salesApi);
+addTokenInterceptor(reportingApi);
 
 // Error handler helper
 export const handleApiError = (error: unknown): string => {

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { authService } from '../services/authService';
 
 interface SidebarProps {
   children: React.ReactNode;
@@ -8,6 +9,13 @@ interface SidebarProps {
 const Sidebar: React.FC<SidebarProps> = ({ children }) => {
   const [isOpen, setIsOpen] = useState(true);
   const location = useLocation();
+  const navigate = useNavigate();
+  const username = authService.getUsername();
+
+  const handleLogout = () => {
+    authService.logout();
+    navigate('/login');
+  };
 
   const menuItems = [
     { path: '/dashboard', icon: '📊', label: 'Dashboard' },
@@ -63,8 +71,11 @@ const Sidebar: React.FC<SidebarProps> = ({ children }) => {
             </div>
             {isOpen && (
               <div className="ml-3">
-                <p className="font-medium text-sm">Usuario</p>
-                <button className="text-xs text-primary-200 hover:text-white">
+                <p className="font-medium text-sm">{username || 'Usuario'}</p>
+                <button 
+                  onClick={handleLogout}
+                  className="text-xs text-primary-200 hover:text-white"
+                >
                   Cerrar sesión
                 </button>
               </div>

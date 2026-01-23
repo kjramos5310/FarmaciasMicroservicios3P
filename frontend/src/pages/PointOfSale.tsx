@@ -4,6 +4,7 @@ import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
 import { Modal, LoadingSpinner } from '../components';
 import { catalogService, inventoryService, salesService } from '../services';
+import { useAuth } from '../hooks/useAuth';
 import {
   Product,
   Branch,
@@ -67,6 +68,7 @@ interface CartItem {
 }
 
 const PointOfSale: React.FC = () => {
+  const { canEdit } = useAuth();
   const [activeView, setActiveView] = useState<'pos' | 'history'>('pos');
   const [products, setProducts] = useState<Product[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);

@@ -6,6 +6,7 @@ import { Modal, LoadingSpinner } from '../components';
 import { catalogService } from '../services';
 import { Product, Category, Laboratory, CreateProductRequest, CreateCategoryRequest, CreateLaboratoryRequest } from '../types';
 import { toast } from 'react-toastify';
+import { useAuth } from '../hooks/useAuth';
 
 interface ProductFormData {
   code: string;
@@ -51,6 +52,7 @@ const laboratorySchema = yup.object().shape({
 });
 
 const Products: React.FC = () => {
+  const { canEdit, isAdmin } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [laboratories, setLaboratories] = useState<Laboratory[]>([]);
@@ -251,12 +253,19 @@ const Products: React.FC = () => {
       {/* Header */}
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold text-gray-800">Gestión de Medicamentos</h2>
-        <button
-          onClick={() => setIsModalOpen(true)}
-          className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 transition-colors"
-        >
-          + Nuevo Medicamento
-        </button>
+        {canEdit && (
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 transition-colors"
+          >
+            + Nuevo Medicamento
+          </button>
+        )}
+        {!canEdit && (
+          <span className="text-sm text-gray-500 bg-gray-100 px-4 py-2 rounded-lg">
+            🔍 Modo solo lectura (Usuario)
+          </span>
+        )}
       </div>
 
       {/* Filters */}
@@ -351,18 +360,24 @@ const Products: React.FC = () => {
                     </span>
                   </td>
                   <td className="px-6 py-4 text-sm space-x-2">
-                    <button
-                      onClick={() => handleEdit(product)}
-                      className="text-blue-600 hover:text-blue-800"
-                    >
-                      Editar
-                    </button>
-                    <button
-                      onClick={() => handleDelete(product.id!)}
-                      className="text-red-600 hover:text-red-800"
-                    >
-                      Eliminar
-                    </button>
+                    {canEdit ? (
+                      <>
+                        <button
+                          onClick={() => handleEdit(product)}
+                          className="text-blue-600 hover:text-blue-800"
+                        >
+                          Editar
+                        </button>
+                        <button
+                          onClick={() => handleDelete(product.id!)}
+                          className="text-red-600 hover:text-red-800"
+                        >
+                          Eliminar
+                        </button>
+                      </>
+                    ) : (
+                      <span className="text-gray-400 text-xs">Sin permisos</span>
+                    )}
                   </td>
                 </tr>
               ))}

@@ -6,6 +6,7 @@ import { Modal, LoadingSpinner } from '../components';
 import { inventoryService, catalogService } from '../services';
 import { Branch, Stock, StockMovement, MovementType, Product } from '../types';
 import { toast } from 'react-toastify';
+import { useAuth } from '../hooks/useAuth';
 
 const branchSchema = yup.object().shape({
   code: yup.string().required('Código es requerido').max(50),
@@ -34,6 +35,7 @@ const stockSchema = yup.object().shape({
 });
 
 const Inventory: React.FC = () => {
+  const { canEdit } = useAuth();
   const [activeTab, setActiveTab] = useState<'branches' | 'stock' | 'movements'>('branches');
   const [branches, setBranches] = useState<Branch[]>([]);
   const [stock, setStock] = useState<Stock[]>([]);
