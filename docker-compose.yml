@@ -243,6 +243,40 @@ services:
       retries: 3
       start_period: 90s
 
+  # ============================================================================
+  # API GATEWAY - Punto de entrada único para todos los microservicios
+  # ============================================================================
+  gateway:
+    build:
+      context: ./gateway
+      dockerfile: Dockerfile
+    container_name: gateway
+    restart: unless-stopped
+    ports:
+      - "8123:8123"
+    environment:
+      # Configuración del servidor
+      SERVER_PORT: 8123
+      # Nivel de logging
+      LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_CLOUD_GATEWAY: DEBUG
+    depends_on:
+      productos-service:
+        condition: service_healthy
+      almacen-service:
+        condition: service_healthy
+      ventas-service:
+        condition: service_healthy
+      reportes-service:
+        condition: service_healthy
+    networks:
+      - pharmacy-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8123/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
+
 # ==============================================================================
 # REDES
 # ==============================================================================
