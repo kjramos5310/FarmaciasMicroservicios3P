@@ -1,78 +1,20 @@
 const { createProxyMiddleware } = require('http-proxy-middleware');
 
 module.exports = function(app) {
-  // Catalog Service (port 8081)
+  // Todas las rutas /api/** ahora van al Gateway (puerto 8123)
+  // El Gateway se encarga de enrutar a los microservicios correctos
   app.use(
-    '/api/catalog',
+    '/api',
     createProxyMiddleware({
-      target: 'http://localhost:8081',
+      target: 'http://localhost:8123',
       changeOrigin: true,
-      pathRewrite: {
-        '^/api/catalog': '/api'
-      },
+      // NO hacemos pathRewrite - dejamos que el Gateway maneje las rutas completas
       onProxyReq: (proxyReq) => {
-        console.log('Proxying catalog request:', proxyReq.path);
+        console.log('Proxying request to Gateway:', proxyReq.path);
       },
       onError: (err, req, res) => {
-        console.error('Catalog proxy error:', err.message);
-        res.status(500).json({ error: 'Catalog service unavailable' });
-      }
-    })
-  );
-
-  // Inventory Service (port 8082)
-  app.use(
-    '/api/inventory',
-    createProxyMiddleware({
-      target: 'http://localhost:8082',
-      changeOrigin: true,
-      pathRewrite: {
-        '^/api/inventory': '/api'
-      },
-      onProxyReq: (proxyReq) => {
-        console.log('Proxying inventory request:', proxyReq.path);
-      },
-      onError: (err, req, res) => {
-        console.error('Inventory proxy error:', err.message);
-        res.status(500).json({ error: 'Inventory service unavailable' });
-      }
-    })
-  );
-
-  // Sales Service (port 8083)
-  app.use(
-    '/api/sales',
-    createProxyMiddleware({
-      target: 'http://localhost:8083',
-      changeOrigin: true,
-      pathRewrite: {
-        '^/api/sales': '/api'
-      },
-      onProxyReq: (proxyReq) => {
-        console.log('Proxying sales request:', proxyReq.path);
-      },
-      onError: (err, req, res) => {
-        console.error('Sales proxy error:', err.message);
-        res.status(500).json({ error: 'Sales service unavailable' });
-      }
-    })
-  );
-
-  // Reporting Service (port 8084)
-  app.use(
-    '/api/reporting',
-    createProxyMiddleware({
-      target: 'http://localhost:8084',
-      changeOrigin: true,
-      pathRewrite: {
-        '^/api/reporting': '/api'
-      },
-      onProxyReq: (proxyReq) => {
-        console.log('Proxying reporting request:', proxyReq.path);
-      },
-      onError: (err, req, res) => {
-        console.error('Reporting proxy error:', err.message);
-        res.status(500).json({ error: 'Reporting service unavailable' });
+        console.error('Gateway proxy error:', err.message);
+        res.status(500).json({ error: 'Gateway unavailable' });
       }
     })
   );

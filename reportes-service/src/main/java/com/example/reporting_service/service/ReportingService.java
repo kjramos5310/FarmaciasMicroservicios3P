@@ -255,7 +255,7 @@ public class ReportingService {
         log.info("Generating executive dashboard");
         
         LocalDate endDate = LocalDate.now();
-        LocalDate startDate = endDate.minusDays(30);
+        LocalDate startDate = endDate.minusDays(90); // Últimos 90 días para incluir más datos históricos
         
         List<SaleData> sales = fetchSalesData(startDate, endDate, null);
         List<StockData> stocks = fetchInventoryData(null);

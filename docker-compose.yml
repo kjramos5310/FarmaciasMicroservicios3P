@@ -259,6 +259,21 @@ services:
       SERVER_PORT: 8123
       # Nivel de logging
       LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_CLOUD_GATEWAY: DEBUG
+      # OAuth2 Client Configuration
+      SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GATEWAY-CLIENT_CLIENT-ID: test
+      SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GATEWAY-CLIENT_CLIENT-SECRET: 123456
+      SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GATEWAY-CLIENT_AUTHORIZATION-GRANT-TYPE: authorization_code
+      SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GATEWAY-CLIENT_REDIRECT-URI: "{baseUrl}/login/oauth2/code/{registrationId}"
+      SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GATEWAY-CLIENT_SCOPE: openid,profile,read,write
+      # OAuth2 Provider Configuration (OAuth Server fuera de Docker)
+      SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_GATEWAY-CLIENT_AUTHORIZATION-URI: http://localhost:9000/oauth2/authorize
+      SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_GATEWAY-CLIENT_TOKEN-URI: http://host.docker.internal:9000/oauth2/token
+      SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_GATEWAY-CLIENT_USER-INFO-URI: http://host.docker.internal:9000/userinfo
+      SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_GATEWAY-CLIENT_JWK-SET-URI: http://host.docker.internal:9000/oauth2/jwks
+      SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_GATEWAY-CLIENT_USER-NAME-ATTRIBUTE: sub
+      # OAuth2 Resource Server
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER-URI: http://localhost:9000
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK-SET-URI: http://host.docker.internal:9000/oauth2/jwks
     depends_on:
       productos-service:
         condition: service_healthy
@@ -268,6 +283,8 @@ services:
         condition: service_healthy
       reportes-service:
         condition: service_healthy
+      oauth-server:
+        condition: service_healthy
     networks:
       - pharmacy-network
     healthcheck:
@@ -276,6 +293,61 @@ services:
       timeout: 10s
       retries: 3
       start_period: 90s
+
+  # Servidor OAuth2 - Autenticación y autorización
+  oauth-server:
+    build:
+      context: ./oauth.server
+      dockerfile: Dockerfile
+    container_name: oauth-server
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+    environment:
+      # Configuración de base de datos OAuth (usa contenedor oauth_postgres)
+      SPRING_DATASOURCE_URL: jdbc:postgresql://oauth_postgres:5432/oauth_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.postgresql.Driver
+      # Configuración JPA/Hibernate
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SPRING_JPA_SHOW_SQL: "true"
+      SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT: org.hibernate.dialect.PostgreSQLDialect
+      # Configuración del servidor
+      SERVER_PORT: 9000
+    networks:
+      - pharmacy-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:9000/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
+
+  # ============================================================================
+  # FRONTEND - Aplicación React
+  # ============================================================================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      gateway:
+        condition: service_healthy
+      oauth-server:
+        condition: service_healthy
+    networks:
+      - pharmacy-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
 # ==============================================================================
 # REDES

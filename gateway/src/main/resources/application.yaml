@@ -1,6 +1,39 @@
 spring:
   application:
     name: gateway
+  
+  # Configuración OAuth2 Client
+  security:
+    oauth2:
+      client:
+        registration:
+          gateway-client:
+            client-id: test
+            client-secret: 123456
+            authorization-grant-type: authorization_code
+            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+            scope: 
+              - openid
+              - profile
+              - read
+              - write
+        provider:
+          gateway-client:
+            # authorization-uri usa localhost para redirección del navegador
+            authorization-uri: http://localhost:9000/oauth2/authorize
+            # token-uri usa oauth-server (nombre del contenedor Docker)
+            token-uri: http://oauth-server:9000/oauth2/token
+            # user-info-uri usa oauth-server
+            user-info-uri: http://oauth-server:9000/userinfo
+            # jwk-set-uri usa oauth-server
+            jwk-set-uri: http://oauth-server:9000/oauth2/jwks
+            user-name-attribute: sub
+      resourceserver:
+        jwt:
+          # El issuer debe coincidir con el configurado en el OAuth Server
+          issuer-uri: http://localhost:9000
+          jwk-set-uri: http://oauth-server:9000/oauth2/jwks
+  
   cloud:
     gateway:
       mvc:
@@ -52,6 +85,7 @@ spring:
             allowedOrigins: 
               - "http://localhost:3000"
               - "http://localhost:8123"
+              - "http://localhost:9000"
             allowedMethods:
               - GET
               - POST
